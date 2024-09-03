@@ -3,11 +3,12 @@ package dev.lu15.voicechat;
 import dev.lu15.voicechat.event.PlayerUpdateVoiceStateEvent;
 import dev.lu15.voicechat.network.minecraft.MinecraftPacketHandler;
 import dev.lu15.voicechat.network.minecraft.Packet;
-import dev.lu15.voicechat.network.minecraft.packets.PlayerStatePacket;
-import dev.lu15.voicechat.network.minecraft.packets.SecretPacket;
-import dev.lu15.voicechat.network.minecraft.packets.SecretRequestPacket;
+import dev.lu15.voicechat.network.minecraft.packets.VoiceStatePacket;
+import dev.lu15.voicechat.network.minecraft.packets.HandshakeAcknowledgePacket;
+import dev.lu15.voicechat.network.minecraft.packets.HandshakePacket;
 import dev.lu15.voicechat.network.minecraft.packets.UpdateStatePacket;
 import dev.lu15.voicechat.network.voice.SecretHolder;
+import dev.lu15.voicechat.network.voice.VoicePacket;
 import dev.lu15.voicechat.network.voice.VoiceServer;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -45,7 +46,7 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
         this.port = port;
         this.eventNode = eventNode;
         this.publicAddress = publicAddress;
-        this.server = new VoiceServer(this, address, port);
+        this.server = new VoiceServer(this, this, address, port);
 
         this.server.start();
         LOGGER.info("voice server started on {}:{}", address, port);
@@ -62,7 +63,7 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
             try {
                 Packet packet = this.packetHandler.read(channel, event.getMessage());
                 switch (packet) {
-                    case SecretRequestPacket p -> this.handle(event.getPlayer(), p);
+                    case HandshakePacket p -> this.handle(event.getPlayer(), p);
                     case UpdateStatePacket p -> this.handle(event.getPlayer(), p);
                     default -> throw new IllegalStateException("unexpected packet: " + packet);
                 }
@@ -75,7 +76,7 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
         });
     }
 
-    private void handle(@NotNull Player player, @NotNull SecretRequestPacket packet) {
+    private void handle(@NotNull Player player, @NotNull HandshakePacket packet) {
         LOGGER.debug("received secret request packet from {}", player.getUsername());
 
         if (packet.version() != 18) {
@@ -86,7 +87,7 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
         UUID secret = this.generateSecret(player.getUuid());
         if (secret == null) return;
 
-        player.sendPacket(this.packetHandler.write(new SecretPacket(
+        player.sendPacket(this.packetHandler.write(new HandshakeAcknowledgePacket(
                 secret,
                 this.port,
                 player.getUuid(),
@@ -110,7 +111,7 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
                 null
         );
         player.setTag(Tags.PLAYER_STATE, state);
-        PacketUtils.broadcastPlayPacket(this.packetHandler.write(new PlayerStatePacket(state)));
+        PacketUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
 
         EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
     }
@@ -127,6 +128,16 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
     @Override
     public @Nullable UUID getSecret(@NotNull UUID player) {
         return this.secrets.get(player);
+    }
+
+    @Override
+    public void sendPacket(@NotNull Player player, @NotNull Packet packet) {
+        player.sendPacket(this.packetHandler.write(packet));
+    }
+
+    @Override
+    public void sendPacket(@NotNull Player player, @NotNull VoicePacket packet) {
+        this.server.write(player, packet);
     }
 
     final static class BuilderImpl implements Builder {

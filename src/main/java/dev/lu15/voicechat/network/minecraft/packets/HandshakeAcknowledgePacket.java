@@ -6,7 +6,7 @@ import java.util.UUID;
 import net.minestom.server.network.NetworkBuffer;
 import org.jetbrains.annotations.NotNull;
 
-public record SecretPacket(
+public record HandshakeAcknowledgePacket(
         @NotNull UUID secret,
         int port,
         @NotNull UUID player,
@@ -19,12 +19,14 @@ public record SecretPacket(
         boolean recording
 ) implements Packet {
 
-    public SecretPacket(@NotNull NetworkBuffer buffer) {
+    private static final @NotNull NetworkBuffer.Type<Codec> CODEC_NETWORK_TYPE = Packet.ByteEnum(Codec.class);
+
+    public HandshakeAcknowledgePacket(@NotNull NetworkBuffer buffer) {
         this(
                 buffer.read(NetworkBuffer.UUID),
                 buffer.read(NetworkBuffer.INT),
                 buffer.read(NetworkBuffer.UUID),
-                buffer.read(Packet.ByteEnum(Codec.class)),
+                buffer.read(CODEC_NETWORK_TYPE),
                 buffer.read(NetworkBuffer.INT),
                 buffer.read(NetworkBuffer.DOUBLE),
                 buffer.read(NetworkBuffer.INT),
@@ -39,7 +41,7 @@ public record SecretPacket(
         writer.write(NetworkBuffer.UUID, this.secret);
         writer.write(NetworkBuffer.INT, this.port);
         writer.write(NetworkBuffer.UUID, this.player);
-        writer.write(Packet.ByteEnum(Codec.class), this.codec);
+        writer.write(CODEC_NETWORK_TYPE, this.codec);
         writer.write(NetworkBuffer.INT, this.mtu);
         writer.write(NetworkBuffer.DOUBLE, this.distance);
         writer.write(NetworkBuffer.INT, this.keepAlive);

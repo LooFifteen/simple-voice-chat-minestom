@@ -1,9 +1,10 @@
 package dev.lu15.voicechat.network.minecraft;
 
-import dev.lu15.voicechat.network.minecraft.packets.PlayerStatePacket;
-import dev.lu15.voicechat.network.minecraft.packets.SecretPacket;
-import dev.lu15.voicechat.network.minecraft.packets.SecretRequestPacket;
+import dev.lu15.voicechat.network.minecraft.packets.VoiceStatePacket;
+import dev.lu15.voicechat.network.minecraft.packets.HandshakeAcknowledgePacket;
+import dev.lu15.voicechat.network.minecraft.packets.HandshakePacket;
 import dev.lu15.voicechat.network.minecraft.packets.UpdateStatePacket;
+import dev.lu15.voicechat.network.minecraft.packets.VoiceStatesPacket;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,10 +17,11 @@ public final class MinecraftPacketHandler {
     private final @NotNull Map<String, NetworkBuffer.Reader<Packet>> suppliers = new HashMap<>();
 
     public MinecraftPacketHandler() {
-        this.register("voicechat:request_secret", SecretRequestPacket::new);
-        this.register("voicechat:secret", SecretPacket::new);
+        this.register("voicechat:request_secret", HandshakePacket::new);
+        this.register("voicechat:secret", HandshakeAcknowledgePacket::new);
         this.register("voicechat:update_state", UpdateStatePacket::new);
-        this.register("voicechat:player_state", PlayerStatePacket::new);
+        this.register("voicechat:player_state", VoiceStatePacket::new);
+        this.register("voicechat:player_states", VoiceStatesPacket::new);
     }
 
     public void register(@NotNull String id, @NotNull NetworkBuffer.Reader<Packet> supplier) {

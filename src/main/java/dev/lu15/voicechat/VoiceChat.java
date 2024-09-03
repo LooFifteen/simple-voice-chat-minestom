@@ -1,5 +1,8 @@
 package dev.lu15.voicechat;
 
+import dev.lu15.voicechat.network.minecraft.Packet;
+import dev.lu15.voicechat.network.voice.VoicePacket;
+import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
 import org.jetbrains.annotations.NotNull;
@@ -15,6 +18,10 @@ public sealed interface VoiceChat permits VoiceChatImpl {
     static @NotNull Builder builder(@NotNull String address, int port) {
         return new VoiceChatImpl.BuilderImpl(address, port);
     }
+
+    void sendPacket(@NotNull Player player, @NotNull Packet packet);
+
+    void sendPacket(@NotNull Player player, @NotNull VoicePacket packet);
 
     sealed interface Builder permits VoiceChatImpl.BuilderImpl {
 

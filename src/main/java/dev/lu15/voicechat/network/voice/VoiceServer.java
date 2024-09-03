@@ -2,9 +2,11 @@ package dev.lu15.voicechat.network.voice;
 
 import dev.lu15.voicechat.SoundSources;
 import dev.lu15.voicechat.Tags;
-import dev.lu15.voicechat.api.SoundSelector;
+import dev.lu15.voicechat.VoiceChat;
+import dev.lu15.voicechat.VoiceState;
 import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
 import dev.lu15.voicechat.event.PlayerMicrophoneEvent;
+import dev.lu15.voicechat.network.minecraft.packets.VoiceStatesPacket;
 import dev.lu15.voicechat.network.voice.packets.AuthenticatePacket;
 import dev.lu15.voicechat.network.voice.packets.AuthenticationAcknowledgedPacket;
 import dev.lu15.voicechat.network.voice.packets.KeepAlivePacket;
@@ -19,17 +21,14 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import net.kyori.adventure.text.Component;
 import net.minestom.server.MinecraftServer;
-import net.minestom.server.advancements.FrameType;
-import net.minestom.server.advancements.notifications.Notification;
-import net.minestom.server.advancements.notifications.NotificationCenter;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.EventDispatcher;
-import net.minestom.server.instance.EntityTracker;
-import net.minestom.server.item.Material;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -44,6 +43,7 @@ public final class VoiceServer {
     private final @NotNull LinkedBlockingQueue<RawPacket> packetQueue = new LinkedBlockingQueue<>();
     private final @NotNull Map<SocketAddress, Player> connections = new HashMap<>();
 
+    private final @NotNull VoiceChat voiceChat;
     private final @NotNull SecretHolder secretHolder;
     private final @NotNull InetAddress address;
     private final int port;
@@ -51,7 +51,8 @@ public final class VoiceServer {
     private boolean running;
     private long lastKeepAlive;
 
-    public VoiceServer(@NotNull SecretHolder secretHolder, @NotNull InetAddress address, int port) {
+    public VoiceServer(@NotNull VoiceChat voiceChat, @NotNull SecretHolder secretHolder, @NotNull InetAddress address, int port) {
+        this.voiceChat = voiceChat;
         this.secretHolder = secretHolder;
         this.address = address;
         this.port = port;
@@ -150,7 +151,7 @@ public final class VoiceServer {
         }
     }
 
-    private void write(@NotNull Player player, @NotNull VoicePacket packet) {
+    public void write(@NotNull Player player, @NotNull VoicePacket packet) {
         try {
             this.write0(player, packet);
         } catch (IOException e) {
@@ -199,12 +200,18 @@ public final class VoiceServer {
 
     private void handle(@NotNull Player player, @NotNull YouHereBroPacket ignored) {
         // todo: send keepalive for clients that take a long time to initially connect
+        this.write(player, new YeaImHerePacket());
+
+        Set<VoiceState> states = this.connections.values().stream()
+                .filter(p -> !p.equals(player))
+                .filter(p -> p.hasTag(Tags.PLAYER_STATE))
+                .map(p -> p.getTag(Tags.PLAYER_STATE))
+                .collect(Collectors.toSet());
+        this.voiceChat.sendPacket(player, new VoiceStatesPacket(states));
 
         // this is the packet that is sent when the client is ready to receive voice packets
         // this means they are successfully connected to the voice server
         EventDispatcher.call(new PlayerJoinVoiceChatEvent(player));
-
-        this.write(player, new YeaImHerePacket());
     }
 
     private void handle(@NotNull Player player, @NotNull MicrophonePacket packet) {

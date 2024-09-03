@@ -4,9 +4,9 @@ import dev.lu15.voicechat.network.minecraft.Packet;
 import net.minestom.server.network.NetworkBuffer;
 import org.jetbrains.annotations.NotNull;
 
-public record SecretRequestPacket(int version) implements Packet {
+public record HandshakePacket(int version) implements Packet {
 
-    public SecretRequestPacket(@NotNull NetworkBuffer buffer) {
+    public HandshakePacket(@NotNull NetworkBuffer buffer) {
         this(buffer.read(NetworkBuffer.INT));
     }
 
