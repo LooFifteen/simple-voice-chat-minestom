@@ -1,5 +1,8 @@
 # Simple Voice Chat for Minestom
 
+> [!CAUTION]
+> This library is in development and is not recommended for production use. It is missing critical features which could lead to memory leaks and other issues.
+
 ```kts
 repositories {
     mavenCentral()
