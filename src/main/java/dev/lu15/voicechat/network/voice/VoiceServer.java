@@ -7,6 +7,7 @@ import dev.lu15.voicechat.VoiceState;
 import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
 import dev.lu15.voicechat.event.PlayerMicrophoneEvent;
 import dev.lu15.voicechat.network.minecraft.packets.VoiceStatesPacket;
+import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import dev.lu15.voicechat.network.voice.packets.AuthenticatePacket;
 import dev.lu15.voicechat.network.voice.packets.AuthenticationAcknowledgedPacket;
 import dev.lu15.voicechat.network.voice.packets.KeepAlivePacket;
@@ -28,7 +29,10 @@ import java.util.stream.Collectors;
 import net.kyori.adventure.text.Component;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
+import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
+import net.minestom.server.event.EventNode;
+import net.minestom.server.event.player.PlayerDisconnectEvent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -44,18 +48,22 @@ public final class VoiceServer {
     private final @NotNull Map<SocketAddress, Player> connections = new HashMap<>();
 
     private final @NotNull VoiceChat voiceChat;
-    private final @NotNull SecretHolder secretHolder;
     private final @NotNull InetAddress address;
     private final int port;
 
     private boolean running;
     private long lastKeepAlive;
 
-    public VoiceServer(@NotNull VoiceChat voiceChat, @NotNull SecretHolder secretHolder, @NotNull InetAddress address, int port) {
+    public VoiceServer(@NotNull VoiceChat voiceChat, @NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode) {
         this.voiceChat = voiceChat;
-        this.secretHolder = secretHolder;
         this.address = address;
         this.port = port;
+
+        eventNode.addListener(PlayerDisconnectEvent.class, event -> {
+            Player player = event.getPlayer();
+            if (!player.hasTag(Tags.VOICE_CLIENT)) return;
+            this.connections.remove(player.getTag(Tags.VOICE_CLIENT));
+        });
     }
 
     public void start() {
@@ -108,11 +116,10 @@ public final class VoiceServer {
                 RawPacket rawPacket = this.packetQueue.poll(10, TimeUnit.MILLISECONDS);
                 if (rawPacket == null) continue;
 
-                VoicePacket packet = this.packetHandler.read(rawPacket, this.secretHolder);
+                VoicePacket packet = this.packetHandler.read(rawPacket);
 
                 if (System.currentTimeMillis() - rawPacket.timestamp() > packet.ttl()) {
-                    LOGGER.warn("dropping expired voice packet: {}", packet);
-                    LOGGER.warn("your server may be overloaded");
+                    LOGGER.error("dropping expired voice packet: {}", packet);
                     continue;
                 }
 
@@ -165,7 +172,7 @@ public final class VoiceServer {
         SocketAddress address = this.retrieveSocketAddress(player);
         if (address == null) return;
 
-        this.socket.write(this.packetHandler.write(player.getUuid(), packet, this.secretHolder), address);
+        this.socket.write(this.packetHandler.write(player, packet), address);
     }
 
     private @Nullable SocketAddress retrieveSocketAddress(@NotNull Player player) {
@@ -174,11 +181,16 @@ public final class VoiceServer {
     }
 
     private void checkKeepAlives() {
-        long timestamp = System.currentTimeMillis();
+        long time = System.currentTimeMillis();
 
-        // todo: disconnect client if no keep alive received for a certain amount of time
-
-        this.connections.forEach((address, player) -> this.write(player, new KeepAlivePacket()));
+        Map.copyOf(this.connections).forEach((address, player) -> {
+            if (time - player.getTag(Tags.LAST_KEEP_ALIVE) > 1000 * 10) { // todo: make this configurable
+                // todo: will the client be trying to reconnect?
+                LOGGER.warn("player {} did not send keepalive packet", player.getUsername());
+                player.kick(Component.text("Simple Voice Chat | Connection timed out.")); // todo: remove me, i'm a library
+                this.connections.remove(address);
+            } else this.write(player, new KeepAlivePacket());
+        });
     }
 
     private void handle(@NotNull Player player, @NotNull AuthenticatePacket packet, @NotNull SocketAddress address) {
@@ -187,19 +199,20 @@ public final class VoiceServer {
             return;
         }
 
-        if (!packet.secret().equals(this.secretHolder.getSecret(player.getUuid()))) {
+        if (!packet.secret().equals(SecretUtilities.getSecret(player))) {
             LOGGER.warn("received invalid secret from {}", player.getUsername());
             player.kick(Component.text("Simple Voice Chat | Received incorrect secret, please rejoin."));
             return;
         }
 
+        player.setTag(Tags.LAST_KEEP_ALIVE, System.currentTimeMillis());
         player.setTag(Tags.VOICE_CLIENT, address);
         this.connections.put(address, player);
         this.write(player, new AuthenticationAcknowledgedPacket());
     }
 
     private void handle(@NotNull Player player, @NotNull YouHereBroPacket ignored) {
-        // todo: send keepalive for clients that take a long time to initially connect
+        this.write(player, new KeepAlivePacket());
         this.write(player, new YeaImHerePacket());
 
         Set<VoiceState> states = this.connections.values().stream()
@@ -211,6 +224,8 @@ public final class VoiceServer {
 
         // this is the packet that is sent when the client is ready to receive voice packets
         // this means they are successfully connected to the voice server
+        LOGGER.debug("player {} connected to voice chat", player.getUsername());
+
         EventDispatcher.call(new PlayerJoinVoiceChatEvent(player));
     }
 
@@ -236,11 +251,11 @@ public final class VoiceServer {
         });
     }
 
-    private void handle(@NotNull Player player, @NotNull KeepAlivePacket packet) {
-        // todo: handle keepalive
+    private void handle(@NotNull Player player, @NotNull KeepAlivePacket ignored) {
+        player.setTag(Tags.LAST_KEEP_ALIVE, System.currentTimeMillis());
     }
 
-    private void handle(@NotNull Player player, @NotNull PingPacket packet) {
+    private void handle(@NotNull Player ignored, @NotNull PingPacket packet) {
         LOGGER.debug("received ping packet: {}", packet);
         // todo: handle pings
     }

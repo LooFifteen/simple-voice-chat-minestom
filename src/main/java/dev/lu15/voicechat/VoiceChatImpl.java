@@ -7,9 +7,9 @@ import dev.lu15.voicechat.network.minecraft.packets.VoiceStatePacket;
 import dev.lu15.voicechat.network.minecraft.packets.HandshakeAcknowledgePacket;
 import dev.lu15.voicechat.network.minecraft.packets.HandshakePacket;
 import dev.lu15.voicechat.network.minecraft.packets.UpdateStatePacket;
-import dev.lu15.voicechat.network.voice.SecretHolder;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import dev.lu15.voicechat.network.voice.VoiceServer;
+import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.SecureRandom;
@@ -23,6 +23,7 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.event.player.PlayerDisconnectEvent;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
 import net.minestom.server.utils.PacketUtils;
 import org.jetbrains.annotations.NotNull;
@@ -30,28 +31,28 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class VoiceChatImpl implements VoiceChat, SecretHolder {
+final class VoiceChatImpl implements VoiceChat {
 
     private static final @NotNull Logger LOGGER = LoggerFactory.getLogger(VoiceChatImpl.class);
 
     private final @NotNull MinecraftPacketHandler packetHandler = new MinecraftPacketHandler();
-    private final @NotNull Map<UUID, UUID> secrets = new HashMap<>();
 
     private final @NotNull VoiceServer server;
     private final int port;
-    private final @NotNull EventNode<Event> eventNode;
     private final @NotNull String publicAddress;
 
     private VoiceChatImpl(@NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode, @NotNull String publicAddress) {
         this.port = port;
-        this.eventNode = eventNode;
         this.publicAddress = publicAddress;
-        this.server = new VoiceServer(this, this, address, port);
+
+        EventNode<Event> voiceServerEventNode = EventNode.all("voice-server");
+        eventNode.addChild(voiceServerEventNode);
+        this.server = new VoiceServer(this, address, port, voiceServerEventNode);
 
         this.server.start();
         LOGGER.info("voice server started on {}:{}", address, port);
 
-        this.eventNode.addListener(PlayerPluginMessageEvent.class, event -> {
+        eventNode.addListener(PlayerPluginMessageEvent.class, event -> {
             String channel = event.getIdentifier();
             if (!Key.parseable(channel)) return;
 
@@ -77,15 +78,16 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
     }
 
     private void handle(@NotNull Player player, @NotNull HandshakePacket packet) {
-        LOGGER.debug("received secret request packet from {}", player.getUsername());
-
         if (packet.version() != 18) {
-            LOGGER.warn("player {} using outdated version: {}", player.getUsername(), packet.version());
+            LOGGER.warn("player {} using wrong version: {}", player.getUsername(), packet.version());
             return;
         }
 
-        UUID secret = this.generateSecret(player.getUuid());
-        if (secret == null) return;
+        UUID secret = SecretUtilities.generateSecret(player);
+        if (secret == null) {
+            LOGGER.warn("player {} already has a secret", player.getUsername());
+            return;
+        }
 
         player.sendPacket(this.packetHandler.write(new HandshakeAcknowledgePacket(
                 secret,
@@ -114,20 +116,6 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
         PacketUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
 
         EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
-    }
-
-    private @Nullable UUID generateSecret(@NotNull UUID player) {
-        if (this.secrets.containsKey(player)) return null;
-
-        Random random = new SecureRandom(); // todo: wtf?
-        UUID secret = new UUID(random.nextLong(), random.nextLong());
-        this.secrets.put(player, secret);
-        return secret;
-    }
-
-    @Override
-    public @Nullable UUID getSecret(@NotNull UUID player) {
-        return this.secrets.get(player);
     }
 
     @Override

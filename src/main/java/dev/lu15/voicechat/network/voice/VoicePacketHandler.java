@@ -1,6 +1,7 @@
 package dev.lu15.voicechat.network.voice;
 
 import dev.lu15.voicechat.network.voice.encryption.AES;
+import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import dev.lu15.voicechat.network.voice.packets.AuthenticatePacket;
 import dev.lu15.voicechat.network.voice.packets.AuthenticationAcknowledgedPacket;
 import dev.lu15.voicechat.network.voice.packets.GroupSoundPacket;
@@ -13,6 +14,7 @@ import dev.lu15.voicechat.network.voice.packets.YeaImHerePacket;
 import dev.lu15.voicechat.network.voice.packets.YouHereBroPacket;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import net.minestom.server.entity.Player;
 import net.minestom.server.network.NetworkBuffer;
 import net.minestom.server.utils.collection.ObjectArray;
 import org.jetbrains.annotations.NotNull;
@@ -40,14 +42,13 @@ public final class VoicePacketHandler {
         this.suppliers.set(id, supplier);
     }
 
-    public @NotNull VoicePacket read(@NotNull RawPacket packet, @NotNull SecretHolder secretHolder) throws Exception {
+    public @NotNull VoicePacket read(@NotNull RawPacket packet) throws Exception {
         byte[] data = packet.data();
         NetworkBuffer outer = new NetworkBuffer(ByteBuffer.wrap(data));
 
         if (outer.read(NetworkBuffer.BYTE) != MAGIC_BYTE) throw new IllegalStateException("invalid magic byte");
 
-        UUID player = outer.read(NetworkBuffer.UUID);
-        UUID secret = secretHolder.getSecret(player);
+        UUID secret = SecretUtilities.getSecret(outer.read(NetworkBuffer.UUID));
         if (secret == null) throw new IllegalStateException("no secret for player");
 
         byte[] decrypted = AES.decrypt(secret, outer.read(NetworkBuffer.BYTE_ARRAY));
@@ -60,20 +61,20 @@ public final class VoicePacketHandler {
         return supplier.read(buffer);
     }
 
-    public byte @NotNull[] write(@NotNull UUID player, @NotNull VoicePacket packet, @NotNull SecretHolder secretHolder) {
+    public byte @NotNull[] write(@NotNull Player player, @NotNull VoicePacket packet) {
         try {
-            return this.write0(player, packet, secretHolder);
+            return this.write0(player, packet);
         } catch (Exception e) {
             // the code on the server should be trusted, so this runtime exception is fine to throw
             throw new RuntimeException("failed to write packet", e);
         }
     }
 
-    private byte @NotNull[] write0(@NotNull UUID player, @NotNull VoicePacket packet, @NotNull SecretHolder secretHolder) throws Exception {
+    private byte @NotNull[] write0(@NotNull Player player, @NotNull VoicePacket packet) throws Exception {
         NetworkBuffer buffer = new NetworkBuffer();
         buffer.write(NetworkBuffer.BYTE, MAGIC_BYTE);
 
-        UUID secret = secretHolder.getSecret(player);
+        UUID secret = SecretUtilities.getSecret(player);
         if (secret == null) throw new IllegalStateException("no secret for player");
 
         NetworkBuffer inner = new NetworkBuffer();
