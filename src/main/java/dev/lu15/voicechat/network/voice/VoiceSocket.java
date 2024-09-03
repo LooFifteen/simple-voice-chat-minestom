@@ -19,7 +19,10 @@ public final class VoiceSocket {
         if (this.socket != null) throw new IllegalStateException("socket already open");
 
         this.socket = new DatagramSocket(port, address);
-        this.socket.setTrafficClass(0x04); // IPTOS_RELIABILITY
+
+        // https://datatracker.ietf.org/doc/html/rfc1349
+        // setting this will allow the socket to prioritize reliability over speed
+        this.socket.setTrafficClass(0x04);
     }
 
     public @NotNull RawPacket read() throws IOException {
@@ -41,7 +44,7 @@ public final class VoiceSocket {
     }
 
     public void close() {
-        if (this.socket == null) return;
+        if (this.socket == null || this.socket.isClosed()) return;
         this.socket.close();
         this.socket = null;
     }

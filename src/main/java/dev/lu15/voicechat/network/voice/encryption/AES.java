@@ -1,6 +1,5 @@
 package dev.lu15.voicechat.network.voice.encryption;
 
-import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -29,11 +28,6 @@ public final class AES {
         byte[] bytes = new byte[16];
         buffer.copyTo(0, bytes, 0, 16);
         return bytes;
-    }
-
-    public static @NotNull UUID getUuidFromBytes(byte @NotNull[] bytes) {
-        NetworkBuffer buffer = new NetworkBuffer(ByteBuffer.wrap(bytes));
-        return buffer.read(NetworkBuffer.UUID);
     }
 
     private static byte @NotNull[] generateIv() {

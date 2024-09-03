@@ -2,6 +2,9 @@ package dev.lu15.voicechat.network.voice;
 
 import dev.lu15.voicechat.SoundSources;
 import dev.lu15.voicechat.Tags;
+import dev.lu15.voicechat.api.SoundSelector;
+import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
+import dev.lu15.voicechat.event.PlayerMicrophoneEvent;
 import dev.lu15.voicechat.network.voice.packets.AuthenticatePacket;
 import dev.lu15.voicechat.network.voice.packets.AuthenticationAcknowledgedPacket;
 import dev.lu15.voicechat.network.voice.packets.KeepAlivePacket;
@@ -24,6 +27,7 @@ import net.minestom.server.advancements.FrameType;
 import net.minestom.server.advancements.notifications.Notification;
 import net.minestom.server.advancements.notifications.NotificationCenter;
 import net.minestom.server.entity.Player;
+import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.instance.EntityTracker;
 import net.minestom.server.item.Material;
 import org.jetbrains.annotations.NotNull;
@@ -198,36 +202,30 @@ public final class VoiceServer {
 
         // this is the packet that is sent when the client is ready to receive voice packets
         // this means they are successfully connected to the voice server
-        // todo: i should probably add an event here
-
-        // todo: remove me
-        Notification notification = new Notification(Component.text("Connected to voice chat"), FrameType.GOAL, Material.NOTE_BLOCK);
-        NotificationCenter.send(notification, player);
+        EventDispatcher.call(new PlayerJoinVoiceChatEvent(player));
 
         this.write(player, new YeaImHerePacket());
     }
 
     private void handle(@NotNull Player player, @NotNull MicrophonePacket packet) {
-        // todo: check state before broadcasting
         // todo: implement groups?
-        // todo: make crouching decrease distance?
 
-        int distance = 48; // todo: configurable
-        PlayerSoundPacket soundPacket = new PlayerSoundPacket(
-                player.getUuid(), // the channel is the sender's UUID
-                player.getUuid(),
-                packet.data(),
-                packet.sequenceNumber(),
-                distance,
-                packet.whispering(),
-                SoundSources.PROXIMITY
-        );
+        PlayerMicrophoneEvent event = new PlayerMicrophoneEvent(player, packet.data());
+        EventDispatcher.callCancellable(event, () -> {
+            PlayerSoundPacket soundPacket = new PlayerSoundPacket(
+                    player.getUuid(), // the channel is the sender's UUID
+                    player.getUuid(),
+                    event.getAudio(),
+                    packet.sequenceNumber(),
+                    event.getSoundSelector().distance(),
+                    packet.whispering(),
+                    SoundSources.PROXIMITY
+            );
 
-        player.getInstance().getEntityTracker().nearbyEntities(player.getPosition(), distance, EntityTracker.Target.PLAYERS, p -> {
-            if (p.equals(player)) return;
-            if (p.hasTag(Tags.PLAYER_STATE) && p.getTag(Tags.PLAYER_STATE).isDisabled()) return;
-
-            this.write(p, soundPacket);
+            event.getSoundSelector().canHear(player).stream().filter(p -> {
+                if (p.equals(player)) return false;
+                return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).isDisabled();
+            }).forEach(p -> this.write(p, soundPacket));
         });
     }
 

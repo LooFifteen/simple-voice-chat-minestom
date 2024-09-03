@@ -1,5 +1,6 @@
 package dev.lu15.voicechat;
 
+import dev.lu15.voicechat.event.PlayerUpdateVoiceStateEvent;
 import dev.lu15.voicechat.network.minecraft.MinecraftPacketHandler;
 import dev.lu15.voicechat.network.minecraft.Packet;
 import dev.lu15.voicechat.network.minecraft.packets.PlayerStatePacket;
@@ -19,6 +20,7 @@ import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
+import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
 import net.minestom.server.utils.PacketUtils;
@@ -100,7 +102,7 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
 
     private void handle(@NotNull Player player, @NotNull UpdateStatePacket packet) {
         // todo: set state when players disconnect from voice chat server - NOT when they disconnect from the minecraft server
-        PlayerState state = new PlayerState(
+        VoiceState state = new VoiceState(
                 player.getUuid(),
                 player.getUsername(),
                 packet.disabled(),
@@ -109,6 +111,8 @@ final class VoiceChatImpl implements VoiceChat, SecretHolder {
         );
         player.setTag(Tags.PLAYER_STATE, state);
         PacketUtils.broadcastPlayPacket(this.packetHandler.write(new PlayerStatePacket(state)));
+
+        EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
     }
 
     private @Nullable UUID generateSecret(@NotNull UUID player) {
