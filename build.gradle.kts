@@ -15,6 +15,9 @@ indra {
         ci(true)
     }
 
+    signWithKeyFromPrefixedProperties("ci")
+    publishSnapshotsTo("hyperaSnapshots", "https://repo.hypera.dev/snapshots/")
+
     javaVersions {
         target(21)
         testWith(21)
