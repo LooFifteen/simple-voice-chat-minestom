@@ -4,6 +4,7 @@ plugins {
     id("net.kyori.indra.publishing")
     id("net.kyori.indra.publishing.sonatype")
     id("net.ltgt.errorprone") version "4.0.1"
+    id("maven-publish")
 }
 
 group = "dev.lu15"
