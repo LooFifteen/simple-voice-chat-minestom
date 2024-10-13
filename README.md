@@ -5,8 +5,8 @@
 
 ```kts
 repositories {
-    mavenCentral()
-    mavenLocal() // this library currently needs local publishing
+    mavenCentral() // minestom
+    maven("https://repo.hypera.dev/snapshots/") // simple-voice-chat-minestom
 }
 
 dependencies {

@@ -1,8 +1,8 @@
 plugins {
     `java-library`
+    signing
     id("net.kyori.indra")
     id("net.kyori.indra.publishing")
-    id("net.kyori.indra.publishing.sonatype")
     id("net.ltgt.errorprone") version "4.0.1"
 }
 
@@ -37,10 +37,6 @@ indra {
             }
         }
     }
-}
-
-indraSonatype {
-    useAlternateSonatypeOSSHost("s01")
 }
 
 repositories {
