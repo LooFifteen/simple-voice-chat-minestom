@@ -21,17 +21,18 @@ public final class AES {
 
     private static final @NotNull Random RANDOM = new SecureRandom();
     private static final @NotNull String CIPHER = "AES/CBC/PKCS5Padding";
+    private static final int UUID_LENGTH = 16;
 
     public static byte @NotNull[] getBytesFromUuid(@NotNull UUID uuid) {
-        NetworkBuffer buffer = new NetworkBuffer(16);
+        NetworkBuffer buffer = NetworkBuffer.staticBuffer(UUID_LENGTH);
         buffer.write(NetworkBuffer.UUID, uuid);
-        byte[] bytes = new byte[16];
-        buffer.copyTo(0, bytes, 0, 16);
+        byte[] bytes = new byte[UUID_LENGTH];
+        buffer.copyTo(0, bytes, 0, UUID_LENGTH);
         return bytes;
     }
 
     private static byte @NotNull[] generateIv() {
-        byte[] iv = new byte[16];
+        byte[] iv = new byte[UUID_LENGTH];
         RANDOM.nextBytes(iv);
         return iv;
     }
@@ -55,7 +56,7 @@ public final class AES {
     }
 
     public static byte @NotNull[] decrypt(@NotNull UUID secret, byte @NotNull[] result) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
-        byte[] iv = new byte[16];
+        byte[] iv = new byte[UUID_LENGTH];
         System.arraycopy(result, 0, iv, 0, iv.length);
 
         byte[] data = new byte[result.length - iv.length];

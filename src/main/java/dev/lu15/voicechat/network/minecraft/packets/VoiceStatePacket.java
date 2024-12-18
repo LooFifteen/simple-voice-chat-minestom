@@ -3,22 +3,24 @@ package dev.lu15.voicechat.network.minecraft.packets;
 import dev.lu15.voicechat.VoiceState;
 import dev.lu15.voicechat.network.minecraft.Packet;
 import net.minestom.server.network.NetworkBuffer;
+import net.minestom.server.network.NetworkBufferTemplate;
 import org.jetbrains.annotations.NotNull;
 
-public record VoiceStatePacket(@NotNull VoiceState state) implements Packet {
+public record VoiceStatePacket(@NotNull VoiceState state) implements Packet<VoiceStatePacket> {
 
-    public VoiceStatePacket(@NotNull NetworkBuffer buffer) {
-        this(buffer.read(VoiceState.NETWORK_TYPE));
-    }
-
-    @Override
-    public void write(@NotNull NetworkBuffer writer) {
-        writer.write(VoiceState.NETWORK_TYPE, this.state);
-    }
+    public static final @NotNull NetworkBuffer.Type<VoiceStatePacket> SERIALIZER = NetworkBufferTemplate.template(
+            VoiceState.NETWORK_TYPE, VoiceStatePacket::state,
+            VoiceStatePacket::new
+    );
 
     @Override
     public @NotNull String id() {
         return "voicechat:player_state";
+    }
+
+    @Override
+    public NetworkBuffer.@NotNull Type<VoiceStatePacket> serializer() {
+        return SERIALIZER;
     }
 
 }

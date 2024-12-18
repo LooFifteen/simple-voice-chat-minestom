@@ -6,7 +6,7 @@ import java.util.List;
 import net.minestom.server.network.NetworkBuffer;
 import org.jetbrains.annotations.NotNull;
 
-public interface Packet extends NetworkBuffer.Writer {
+public interface Packet<T extends Packet<T>> {
 
     static <E extends Enum<E>> NetworkBuffer. @NotNull Type<E> ByteEnum(@NotNull Class<E> enumClass) {
         return new NetworkBuffer.Type<>() {
@@ -41,5 +41,7 @@ public interface Packet extends NetworkBuffer.Writer {
     }
 
     @NotNull String id();
+
+    @NotNull NetworkBuffer.Type<T> serializer();
 
 }

@@ -12,10 +12,6 @@ import dev.lu15.voicechat.network.voice.VoiceServer;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.security.SecureRandom;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
@@ -23,9 +19,7 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
-import net.minestom.server.event.player.PlayerDisconnectEvent;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
-import net.minestom.server.utils.PacketUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -41,6 +35,7 @@ final class VoiceChatImpl implements VoiceChat {
     private final int port;
     private final @NotNull String publicAddress;
 
+    @SuppressWarnings("PatternValidation")
     private VoiceChatImpl(@NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode, @NotNull String publicAddress) {
         this.port = port;
         this.publicAddress = publicAddress;
@@ -55,14 +50,12 @@ final class VoiceChatImpl implements VoiceChat {
         eventNode.addListener(PlayerPluginMessageEvent.class, event -> {
             String channel = event.getIdentifier();
             if (!Key.parseable(channel)) return;
-
-            //noinspection PatternValidation
             Key identifier = Key.key(channel);
 
             if (!identifier.namespace().equals("voicechat")) return;
 
             try {
-                Packet packet = this.packetHandler.read(channel, event.getMessage());
+                Packet<?> packet = this.packetHandler.read(channel, event.getMessage());
                 switch (packet) {
                     case HandshakePacket p -> this.handle(event.getPlayer(), p);
                     case UpdateStatePacket p -> this.handle(event.getPlayer(), p);
@@ -113,18 +106,18 @@ final class VoiceChatImpl implements VoiceChat {
                 null
         );
         player.setTag(Tags.PLAYER_STATE, state);
-        PacketUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
+        this.packetHandler.write(new VoiceStatePacket(state));
 
         EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
     }
 
     @Override
-    public void sendPacket(@NotNull Player player, @NotNull Packet packet) {
+    public <T extends Packet<T>> void sendPacket(@NotNull Player player, @NotNull T packet) {
         player.sendPacket(this.packetHandler.write(packet));
     }
 
     @Override
-    public void sendPacket(@NotNull Player player, @NotNull VoicePacket packet) {
+    public <T extends VoicePacket<T>> void sendPacket(@NotNull Player player, @NotNull T packet) {
         this.server.write(player, packet);
     }
 

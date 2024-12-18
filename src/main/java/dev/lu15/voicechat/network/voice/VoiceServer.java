@@ -117,7 +117,7 @@ public final class VoiceServer {
                 RawPacket rawPacket = this.packetQueue.poll(10, TimeUnit.MILLISECONDS);
                 if (rawPacket == null) continue;
 
-                VoicePacket packet = this.packetHandler.read(rawPacket);
+                VoicePacket<?> packet = this.packetHandler.read(rawPacket);
 
                 if (System.currentTimeMillis() - rawPacket.timestamp() > packet.ttl()) {
                     LOGGER.error("dropping expired voice packet: {}", packet);
@@ -159,7 +159,7 @@ public final class VoiceServer {
         }
     }
 
-    public void write(@NotNull Player player, @NotNull VoicePacket packet) {
+    public <T extends VoicePacket<T>> void write(@NotNull Player player, @NotNull T packet) {
         try {
             this.write0(player, packet);
         } catch (IOException e) {
@@ -169,7 +169,7 @@ public final class VoiceServer {
         }
     }
 
-    private void write0(@NotNull Player player, @NotNull VoicePacket packet) throws IOException {
+    private <T extends VoicePacket<T>> void write0(@NotNull Player player, @NotNull T packet) throws IOException {
         SocketAddress address = this.retrieveSocketAddress(player);
         if (address == null) return;
 

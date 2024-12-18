@@ -2,9 +2,11 @@ package dev.lu15.voicechat.network.voice.packets;
 
 import dev.lu15.voicechat.network.voice.Flags;
 import dev.lu15.voicechat.network.voice.VoicePacket;
+import java.util.Optional;
 import java.util.UUID;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.network.NetworkBuffer;
+import net.minestom.server.network.NetworkBufferTemplate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -16,17 +18,27 @@ public record PositionedSoundPacket(
         long sequenceNumber,
         float distance,
         @Nullable String category
-) implements VoicePacket {
+) implements VoicePacket<PositionedSoundPacket> {
+
+    public static final @NotNull NetworkBuffer.Type<PositionedSoundPacket> SERIALIZER = NetworkBufferTemplate.template(
+            NetworkBuffer.UUID, PositionedSoundPacket::channel,
+            NetworkBuffer.UUID, PositionedSoundPacket::sender,
+            POSITION, PositionedSoundPacket::position,
+            NetworkBuffer.BYTE_ARRAY, PositionedSoundPacket::data,
+            NetworkBuffer.LONG, PositionedSoundPacket::sequenceNumber,
+            NetworkBuffer.FLOAT, PositionedSoundPacket::distance,
+            Flags.SERIALIZER, packet -> Flags.category(packet.category),
+            PositionedSoundPacket::new
+    );
 
     private PositionedSoundPacket(
-            @NotNull NetworkBuffer buffer,
             @NotNull UUID channel,
             @NotNull UUID sender,
             @NotNull Point position,
             byte @NotNull[] data,
             long sequenceNumber,
             float distance,
-            byte flags
+            @NotNull Flags flags
     ) {
         this(
                 channel,
@@ -35,42 +47,18 @@ public record PositionedSoundPacket(
                 data,
                 sequenceNumber,
                 distance,
-                (flags & Flags.CATEGORY) != 0 ? buffer.read(NetworkBuffer.STRING) : null
+                flags.category()
         );
-    }
-
-    public PositionedSoundPacket(@NotNull NetworkBuffer buffer) {
-        this(
-                buffer,
-                buffer.read(NetworkBuffer.UUID),
-                buffer.read(NetworkBuffer.UUID),
-                buffer.read(POSITION),
-                buffer.read(NetworkBuffer.BYTE_ARRAY),
-                buffer.read(NetworkBuffer.LONG),
-                buffer.read(NetworkBuffer.FLOAT),
-                buffer.read(NetworkBuffer.BYTE)
-        );
-    }
-
-    @Override
-    public void write(@NotNull NetworkBuffer writer) {
-        writer.write(NetworkBuffer.UUID, this.channel);
-        writer.write(NetworkBuffer.UUID, this.sender);
-        writer.write(POSITION, this.position);
-        writer.write(NetworkBuffer.BYTE_ARRAY, this.data);
-        writer.write(NetworkBuffer.LONG, this.sequenceNumber);
-        writer.write(NetworkBuffer.FLOAT, this.distance);
-
-        byte flags = 0;
-        if (this.category != null) flags |= Flags.CATEGORY;
-
-        writer.write(NetworkBuffer.BYTE, flags);
-        if (this.category != null) writer.write(NetworkBuffer.STRING, this.category);
     }
 
     @Override
     public int id() {
         return 0x4;
+    }
+
+    @Override
+    public NetworkBuffer.@NotNull Type<PositionedSoundPacket> serializer() {
+        return SERIALIZER;
     }
 
 }

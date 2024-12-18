@@ -12,39 +12,41 @@ import dev.lu15.voicechat.network.voice.packets.PlayerSoundPacket;
 import dev.lu15.voicechat.network.voice.packets.PositionedSoundPacket;
 import dev.lu15.voicechat.network.voice.packets.YeaImHerePacket;
 import dev.lu15.voicechat.network.voice.packets.YouHereBroPacket;
-import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.UUID;
 import net.minestom.server.entity.Player;
 import net.minestom.server.network.NetworkBuffer;
 import net.minestom.server.utils.collection.ObjectArray;
 import org.jetbrains.annotations.NotNull;
 
+@SuppressWarnings("UnstableApiUsage") // thanks, minestom
 public final class VoicePacketHandler {
 
     private static final byte MAGIC_BYTE = (byte) 0b11111111;
 
-    private final @NotNull ObjectArray<NetworkBuffer.Reader<VoicePacket>> suppliers = ObjectArray.singleThread(0xA);
+    private final @NotNull ObjectArray<NetworkBuffer.Type<VoicePacket<?>>> suppliers = ObjectArray.singleThread(0xA);
 
     public VoicePacketHandler() {
-        this.register(0x1, MicrophonePacket::new);
-        this.register(0x2, PlayerSoundPacket::new);
-        this.register(0x3, GroupSoundPacket::new);
-        this.register(0x4, PositionedSoundPacket::new);
-        this.register(0x5, AuthenticatePacket::new);
-        this.register(0x6, AuthenticationAcknowledgedPacket::new);
-        this.register(0x7, PingPacket::new);
-        this.register(0x8, KeepAlivePacket::new);
-        this.register(0x9, YouHereBroPacket::new);
-        this.register(0xA, YeaImHerePacket::new);
+        this.register(0x1, MicrophonePacket.SERIALIZER);
+        this.register(0x2, PlayerSoundPacket.SERIALIZER);
+        this.register(0x3, GroupSoundPacket.SERIALIZER);
+        this.register(0x4, PositionedSoundPacket.SERIALIZER);
+        this.register(0x5, AuthenticatePacket.SERIALIZER);
+        this.register(0x6, AuthenticationAcknowledgedPacket.SERIALIZER);
+        this.register(0x7, PingPacket.SERIALIZER);
+        this.register(0x8, KeepAlivePacket.SERIALIZER);
+        this.register(0x9, YouHereBroPacket.SERIALIZER);
+        this.register(0xA, YeaImHerePacket.SERIALIZER);
     }
 
-    public void register(int id, @NotNull NetworkBuffer.Reader<VoicePacket> supplier) {
-        this.suppliers.set(id, supplier);
+    public <T extends VoicePacket<T>> void register(int id, @NotNull NetworkBuffer.Type<T> supplier) {
+        //noinspection unchecked
+        this.suppliers.set(id, (NetworkBuffer.Type<VoicePacket<?>>) supplier);
     }
 
-    public @NotNull VoicePacket read(@NotNull RawPacket packet) throws Exception {
+    public @NotNull VoicePacket<?> read(@NotNull RawPacket packet) throws Exception {
         byte[] data = packet.data();
-        NetworkBuffer outer = new NetworkBuffer(ByteBuffer.wrap(data));
+        NetworkBuffer outer = NetworkBuffer.wrap(data, 0, data.length);
 
         if (outer.read(NetworkBuffer.BYTE) != MAGIC_BYTE) throw new IllegalStateException("invalid magic byte");
 
@@ -52,42 +54,43 @@ public final class VoicePacketHandler {
         if (secret == null) throw new IllegalStateException("no secret for player");
 
         byte[] decrypted = AES.decrypt(secret, outer.read(NetworkBuffer.BYTE_ARRAY));
-        NetworkBuffer buffer = new NetworkBuffer(ByteBuffer.wrap(decrypted));
+        NetworkBuffer buffer = NetworkBuffer.wrap(decrypted, 0, decrypted.length);
 
         int id = buffer.read(NetworkBuffer.BYTE);
-        NetworkBuffer.Reader<VoicePacket> supplier = this.suppliers.get(id);
+        NetworkBuffer.Type<VoicePacket<?>> supplier = this.suppliers.get(id);
         if (supplier == null) throw new IllegalStateException("invalid packet id");
 
         return supplier.read(buffer);
     }
 
-    public byte @NotNull[] write(@NotNull Player player, @NotNull VoicePacket packet) {
+    public <T extends VoicePacket<T>> byte @NotNull[] write(@NotNull Player player, @NotNull T packet) {
         try {
             return this.write0(player, packet);
         } catch (Exception e) {
-            // the code on the server should be trusted, so this runtime exception is fine to throw
+            // the code running this method should be from simple-voice-chat-minestom itself,
+            // so it should be safe to throw a runtime exception here - it's a b_ug in the code
             throw new RuntimeException("failed to write packet", e);
         }
     }
 
-    private byte @NotNull[] write0(@NotNull Player player, @NotNull VoicePacket packet) throws Exception {
-        NetworkBuffer buffer = new NetworkBuffer();
+    private <T extends VoicePacket<T>> byte @NotNull[] write0(@NotNull Player player, @NotNull T packet) throws Exception {
+        NetworkBuffer buffer = NetworkBuffer.resizableBuffer();
         buffer.write(NetworkBuffer.BYTE, MAGIC_BYTE);
 
         UUID secret = SecretUtilities.getSecret(player);
         if (secret == null) throw new IllegalStateException("no secret for player");
 
-        NetworkBuffer inner = new NetworkBuffer();
+        NetworkBuffer inner = NetworkBuffer.resizableBuffer();
         inner.write(NetworkBuffer.BYTE, (byte) packet.id());
-        packet.write(inner);
+        packet.serializer().write(inner, packet);
 
-        byte[] data = new byte[inner.readableBytes()];
+        byte[] data = new byte[(int) inner.writeIndex()];
         inner.copyTo(0, data, 0, data.length);
 
         byte[] encrypted = AES.encrypt(secret, data);
         buffer.write(NetworkBuffer.BYTE_ARRAY, encrypted);
 
-        byte[] result = new byte[buffer.readableBytes()];
+        byte[] result = new byte[(int) buffer.writeIndex()];
         buffer.copyTo(0, result, 0, result.length);
 
         return result;

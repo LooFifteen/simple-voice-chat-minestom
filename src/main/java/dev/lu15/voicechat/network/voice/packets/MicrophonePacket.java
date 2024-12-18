@@ -2,32 +2,30 @@ package dev.lu15.voicechat.network.voice.packets;
 
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import net.minestom.server.network.NetworkBuffer;
+import net.minestom.server.network.NetworkBufferTemplate;
 import org.jetbrains.annotations.NotNull;
 
 public record MicrophonePacket(
         byte @NotNull[] data,
         long sequenceNumber,
         boolean whispering
-) implements VoicePacket {
+) implements VoicePacket<MicrophonePacket> {
 
-    public MicrophonePacket(@NotNull NetworkBuffer buffer) {
-        this(
-                buffer.read(NetworkBuffer.BYTE_ARRAY),
-                buffer.read(NetworkBuffer.LONG),
-                buffer.read(NetworkBuffer.BOOLEAN)
-        );
-    }
-
-    @Override
-    public void write(@NotNull NetworkBuffer writer) {
-        writer.write(NetworkBuffer.BYTE_ARRAY, this.data);
-        writer.write(NetworkBuffer.LONG, this.sequenceNumber);
-        writer.write(NetworkBuffer.BOOLEAN, this.whispering);
-    }
+    public static final @NotNull NetworkBuffer.Type<MicrophonePacket> SERIALIZER = NetworkBufferTemplate.template(
+            NetworkBuffer.BYTE_ARRAY, MicrophonePacket::data,
+            NetworkBuffer.LONG, MicrophonePacket::sequenceNumber,
+            NetworkBuffer.BOOLEAN, MicrophonePacket::whispering,
+            MicrophonePacket::new
+    );
 
     @Override
     public int id() {
         return 0x1;
+    }
+
+    @Override
+    public NetworkBuffer.@NotNull Type<MicrophonePacket> serializer() {
+        return SERIALIZER;
     }
 
     @Override

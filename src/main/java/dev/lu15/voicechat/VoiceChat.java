@@ -19,9 +19,9 @@ public sealed interface VoiceChat permits VoiceChatImpl {
         return new VoiceChatImpl.BuilderImpl(address, port);
     }
 
-    void sendPacket(@NotNull Player player, @NotNull Packet packet);
+    <T extends Packet<T>> void sendPacket(@NotNull Player player, @NotNull T packet);
 
-    void sendPacket(@NotNull Player player, @NotNull VoicePacket packet);
+    <T extends VoicePacket<T>> void sendPacket(@NotNull Player player, @NotNull T packet);
 
     sealed interface Builder permits VoiceChatImpl.BuilderImpl {
 

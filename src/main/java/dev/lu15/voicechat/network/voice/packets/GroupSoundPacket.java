@@ -2,8 +2,10 @@ package dev.lu15.voicechat.network.voice.packets;
 
 import dev.lu15.voicechat.network.voice.Flags;
 import dev.lu15.voicechat.network.voice.VoicePacket;
+import java.util.Optional;
 import java.util.UUID;
 import net.minestom.server.network.NetworkBuffer;
+import net.minestom.server.network.NetworkBufferTemplate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -13,52 +15,41 @@ public record GroupSoundPacket(
         byte @NotNull[] data,
         long sequenceNumber,
         @Nullable String category
-) implements VoicePacket {
+) implements VoicePacket<GroupSoundPacket> {
+
+    public static final @NotNull NetworkBuffer.Type<GroupSoundPacket> SERIALIZER = NetworkBufferTemplate.template(
+            NetworkBuffer.UUID, GroupSoundPacket::channel,
+            NetworkBuffer.UUID, GroupSoundPacket::sender,
+            NetworkBuffer.BYTE_ARRAY, GroupSoundPacket::data,
+            NetworkBuffer.LONG, GroupSoundPacket::sequenceNumber,
+            Flags.SERIALIZER, packet -> Flags.category(packet.category),
+            GroupSoundPacket::new
+    );
 
     private GroupSoundPacket(
-            @NotNull NetworkBuffer buffer,
             @NotNull UUID channel,
             @NotNull UUID sender,
             byte @NotNull[] data,
             long sequenceNumber,
-            byte flags
+            @NotNull Flags flags
     ) {
         this(
                 channel,
                 sender,
                 data,
                 sequenceNumber,
-                (flags & Flags.CATEGORY) != 0 ? buffer.read(NetworkBuffer.STRING) : null
+                flags.category()
         );
-    }
-
-    public GroupSoundPacket(@NotNull NetworkBuffer buffer) {
-        this(
-                buffer,
-                buffer.read(NetworkBuffer.UUID),
-                buffer.read(NetworkBuffer.UUID),
-                buffer.read(NetworkBuffer.BYTE_ARRAY),
-                buffer.read(NetworkBuffer.LONG),
-                buffer.read(NetworkBuffer.BYTE)
-        );
-    }
-
-    @Override
-    public void write(@NotNull NetworkBuffer writer) {
-        writer.write(NetworkBuffer.UUID, this.channel);
-        writer.write(NetworkBuffer.UUID, this.sender);
-        writer.write(NetworkBuffer.BYTE_ARRAY, this.data);
-        writer.write(NetworkBuffer.LONG, this.sequenceNumber);
-
-        byte flags = 0;
-        if (this.category != null) flags |= Flags.CATEGORY;
-
-        writer.write(NetworkBuffer.BYTE, flags);
-        if (this.category != null) writer.write(NetworkBuffer.STRING, this.category);
     }
 
     @Override
     public int id() {
         return 0x3;
     }
+
+    @Override
+    public NetworkBuffer.@NotNull Type<GroupSoundPacket> serializer() {
+        return SERIALIZER;
+    }
+
 }

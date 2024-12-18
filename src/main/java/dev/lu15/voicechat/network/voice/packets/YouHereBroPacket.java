@@ -2,22 +2,23 @@ package dev.lu15.voicechat.network.voice.packets;
 
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import net.minestom.server.network.NetworkBuffer;
+import net.minestom.server.network.NetworkBufferTemplate;
 import org.jetbrains.annotations.NotNull;
 
-public record YouHereBroPacket() implements VoicePacket {
+public record YouHereBroPacket() implements VoicePacket<YouHereBroPacket> {
 
-    public YouHereBroPacket(@NotNull NetworkBuffer buffer) {
-        this(); // no-op
-    }
-
-    @Override
-    public void write(@NotNull NetworkBuffer writer) {
-        // no-op
-    }
+    public static final @NotNull NetworkBuffer.Type<YouHereBroPacket> SERIALIZER = NetworkBufferTemplate.template(
+            YouHereBroPacket::new
+    );
 
     @Override
     public int id() {
         return 0x9;
+    }
+
+    @Override
+    public NetworkBuffer.@NotNull Type<YouHereBroPacket> serializer() {
+        return SERIALIZER;
     }
 
 }

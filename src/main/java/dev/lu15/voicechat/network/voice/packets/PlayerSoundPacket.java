@@ -2,8 +2,10 @@ package dev.lu15.voicechat.network.voice.packets;
 
 import dev.lu15.voicechat.network.voice.Flags;
 import dev.lu15.voicechat.network.voice.VoicePacket;
+import java.util.Optional;
 import java.util.UUID;
 import net.minestom.server.network.NetworkBuffer;
+import net.minestom.server.network.NetworkBufferTemplate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,16 +17,25 @@ public record PlayerSoundPacket(
         float distance,
         boolean whispering,
         @Nullable String category
-) implements VoicePacket {
+) implements VoicePacket<PlayerSoundPacket> {
+
+    public static final @NotNull NetworkBuffer.Type<PlayerSoundPacket> SERIALIZER = NetworkBufferTemplate.template(
+            NetworkBuffer.UUID, PlayerSoundPacket::channel,
+            NetworkBuffer.UUID, PlayerSoundPacket::sender,
+            NetworkBuffer.BYTE_ARRAY, PlayerSoundPacket::data,
+            NetworkBuffer.LONG, PlayerSoundPacket::sequenceNumber,
+            NetworkBuffer.FLOAT, PlayerSoundPacket::distance,
+            Flags.SERIALIZER, packet -> Flags.flags(packet.whispering, packet.category),
+            PlayerSoundPacket::new
+    );
 
     private PlayerSoundPacket(
-            @NotNull NetworkBuffer buffer,
             @NotNull UUID channel,
             @NotNull UUID sender,
             byte @NotNull[] data,
             long sequenceNumber,
             float distance,
-            byte flags
+            @NotNull Flags flags
     ) {
         this(
                 channel,
@@ -32,42 +43,19 @@ public record PlayerSoundPacket(
                 data,
                 sequenceNumber,
                 distance,
-                (flags & Flags.WHISPERING) != 0,
-                (flags & Flags.CATEGORY) != 0 ? buffer.read(NetworkBuffer.STRING) : null
+                flags.whispering(),
+                flags.category()
         );
-    }
-
-    public PlayerSoundPacket(@NotNull NetworkBuffer buffer) {
-        this(
-                buffer,
-                buffer.read(NetworkBuffer.UUID),
-                buffer.read(NetworkBuffer.UUID),
-                buffer.read(NetworkBuffer.BYTE_ARRAY),
-                buffer.read(NetworkBuffer.LONG),
-                buffer.read(NetworkBuffer.FLOAT),
-                buffer.read(NetworkBuffer.BYTE)
-        );
-    }
-
-    @Override
-    public void write(@NotNull NetworkBuffer writer) {
-        writer.write(NetworkBuffer.UUID, this.channel);
-        writer.write(NetworkBuffer.UUID, this.sender);
-        writer.write(NetworkBuffer.BYTE_ARRAY, this.data);
-        writer.write(NetworkBuffer.LONG, this.sequenceNumber);
-        writer.write(NetworkBuffer.FLOAT, this.distance);
-
-        byte flags = 0;
-        if (this.whispering) flags |= Flags.WHISPERING;
-        if (this.category != null) flags |= Flags.CATEGORY;
-
-        writer.write(NetworkBuffer.BYTE, flags);
-        if (this.category != null) writer.write(NetworkBuffer.STRING, this.category);
     }
 
     @Override
     public int id() {
         return 0x2;
+    }
+
+    @Override
+    public NetworkBuffer.@NotNull Type<PlayerSoundPacket> serializer() {
+        return SERIALIZER;
     }
 
 }
