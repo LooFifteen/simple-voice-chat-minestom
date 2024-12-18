@@ -1,6 +1,6 @@
 package dev.lu15.voicechat.event;
 
-import dev.lu15.voicechat.VoiceState;
+import dev.lu15.voicechat.network.minecraft.VoiceState;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.trait.PlayerEvent;
 import org.jetbrains.annotations.NotNull;

@@ -25,12 +25,16 @@ public final class SecretUtilities {
         return player.getTag(Tags.SECRET);
     }
 
-    public static @Nullable UUID generateSecret(@NotNull Player player) {
-        if (getSecret(player) != null) return null;
+    public static boolean hasSecret(@NotNull Player player) {
+        return player.hasTag(Tags.SECRET);
+    }
 
-        UUID secret = new UUID(RANDOM.nextLong(), RANDOM.nextLong());
+    public static void setSecret(@NotNull Player player, @Nullable UUID secret) {
         player.setTag(Tags.SECRET, secret);
-        return secret;
+    }
+
+    public static @NotNull UUID generateSecret() {
+        return new UUID(RANDOM.nextLong(), RANDOM.nextLong());
     }
 
 }

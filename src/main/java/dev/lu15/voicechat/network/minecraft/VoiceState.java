@@ -1,4 +1,4 @@
-package dev.lu15.voicechat;
+package dev.lu15.voicechat.network.minecraft;
 
 import java.util.UUID;
 import net.minestom.server.network.NetworkBuffer;
@@ -22,17 +22,5 @@ public record VoiceState(
             NetworkBuffer.OPT_UUID, VoiceState::group,
             VoiceState::new
     );
-
-    public @NotNull VoiceState withDisabled(boolean disabled) {
-        return new VoiceState(disabled, disconnected, uuid, name, group);
-    }
-
-    public @NotNull VoiceState withDisconnected(boolean disconnected) {
-        return new VoiceState(disabled, disconnected, uuid, name, group);
-    }
-
-    public @NotNull VoiceState withGroup(@Nullable UUID group) {
-        return new VoiceState(disabled, disconnected, uuid, name, group);
-    }
 
 }

@@ -1,6 +1,7 @@
-package dev.lu15.voicechat.network.minecraft.packets;
+package dev.lu15.voicechat.network.minecraft.packets.clientbound;
 
 import dev.lu15.voicechat.Codec;
+import dev.lu15.voicechat.network.NetworkTypes;
 import dev.lu15.voicechat.network.minecraft.Packet;
 import java.util.UUID;
 import net.minestom.server.network.NetworkBuffer;
@@ -24,7 +25,7 @@ public record HandshakeAcknowledgePacket(
             NetworkBuffer.UUID, HandshakeAcknowledgePacket::secret,
             NetworkBuffer.INT, HandshakeAcknowledgePacket::port,
             NetworkBuffer.UUID, HandshakeAcknowledgePacket::player,
-            Packet.ByteEnum(Codec.class), HandshakeAcknowledgePacket::codec,
+            NetworkTypes.ByteEnum(Codec.class), HandshakeAcknowledgePacket::codec,
             NetworkBuffer.INT, HandshakeAcknowledgePacket::mtu,
             NetworkBuffer.DOUBLE, HandshakeAcknowledgePacket::distance,
             NetworkBuffer.INT, HandshakeAcknowledgePacket::keepAlive,

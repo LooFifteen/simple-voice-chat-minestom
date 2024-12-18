@@ -1,5 +1,6 @@
 package dev.lu15.voicechat.network.voice.packets;
 
+import dev.lu15.voicechat.network.NetworkTypes;
 import dev.lu15.voicechat.network.voice.Flags;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import java.util.Optional;
@@ -23,7 +24,7 @@ public record PositionedSoundPacket(
     public static final @NotNull NetworkBuffer.Type<PositionedSoundPacket> SERIALIZER = NetworkBufferTemplate.template(
             NetworkBuffer.UUID, PositionedSoundPacket::channel,
             NetworkBuffer.UUID, PositionedSoundPacket::sender,
-            POSITION, PositionedSoundPacket::position,
+            NetworkTypes.POSITION, PositionedSoundPacket::position,
             NetworkBuffer.BYTE_ARRAY, PositionedSoundPacket::data,
             NetworkBuffer.LONG, PositionedSoundPacket::sequenceNumber,
             NetworkBuffer.FLOAT, PositionedSoundPacket::distance,

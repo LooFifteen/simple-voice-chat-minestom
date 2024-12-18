@@ -1,18 +1,19 @@
 package dev.lu15.voicechat;
 
+import dev.lu15.voicechat.network.minecraft.VoiceState;
+import dev.lu15.voicechat.event.PlayerHandshakeVoiceChatEvent;
 import dev.lu15.voicechat.event.PlayerUpdateVoiceStateEvent;
 import dev.lu15.voicechat.network.minecraft.MinecraftPacketHandler;
 import dev.lu15.voicechat.network.minecraft.Packet;
-import dev.lu15.voicechat.network.minecraft.packets.VoiceStatePacket;
-import dev.lu15.voicechat.network.minecraft.packets.HandshakeAcknowledgePacket;
-import dev.lu15.voicechat.network.minecraft.packets.HandshakePacket;
-import dev.lu15.voicechat.network.minecraft.packets.UpdateStatePacket;
+import dev.lu15.voicechat.network.minecraft.packets.clientbound.VoiceStatePacket;
+import dev.lu15.voicechat.network.minecraft.packets.clientbound.HandshakeAcknowledgePacket;
+import dev.lu15.voicechat.network.minecraft.packets.serverbound.HandshakePacket;
+import dev.lu15.voicechat.network.minecraft.packets.serverbound.UpdateStatePacket;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import dev.lu15.voicechat.network.voice.VoiceServer;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.UUID;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
@@ -57,10 +58,12 @@ final class VoiceChatImpl implements VoiceChat {
 
             try {
                 Packet<?> packet = this.packetHandler.read(channel, event.getMessage());
+                final Player player = event.getPlayer();
                 switch (packet) {
-                    case HandshakePacket p -> this.handle(event.getPlayer(), p);
-                    case UpdateStatePacket p -> this.handle(event.getPlayer(), p);
-                    default -> throw new IllegalStateException("unexpected packet: " + packet);
+                    case HandshakePacket p -> this.handle(player, p);
+                    case UpdateStatePacket p -> this.handle(player, p);
+                    case null -> LOGGER.warn("received unknown packet from {}: {}", player.getUsername(), channel);
+                    default -> throw new UnsupportedOperationException("unimplemented packet: " + packet);
                 }
             } catch (Exception e) {
                 // we ignore this exception because it's most
@@ -77,24 +80,29 @@ final class VoiceChatImpl implements VoiceChat {
             return;
         }
 
-        UUID secret = SecretUtilities.generateSecret(player);
-        if (secret == null) {
+        if (SecretUtilities.hasSecret(player)) {
             LOGGER.warn("player {} already has a secret", player.getUsername());
             return;
         }
 
-        player.sendPacket(this.packetHandler.write(new HandshakeAcknowledgePacket(
-                secret,
-                this.port,
-                player.getUuid(),
-                Codec.VOIP, // todo: configurable
-                1024, // todo: configurable
-                48, // todo: configurable
-                1000, // todo: configurable
-                false, // todo: configurable
-                this.publicAddress,
-                false // todo: configurable
-        )));
+        PlayerHandshakeVoiceChatEvent event = new PlayerHandshakeVoiceChatEvent(player, SecretUtilities.generateSecret());
+
+        EventDispatcher.callCancellable(event, () -> {
+            SecretUtilities.setSecret(player, event.getSecret());
+
+            player.sendPacket(this.packetHandler.write(new HandshakeAcknowledgePacket(
+                    event.getSecret(),
+                    this.port,
+                    player.getUuid(), // why is this sent? the client already knows the player's uuid
+                    Codec.VOIP, // todo: configurable
+                    1024, // todo: configurable
+                    48, // todo: configurable
+                    1000, // todo: configurable
+                    false, // todo: configurable
+                    this.publicAddress,
+                    false // todo: configurable
+            )));
+        });
     }
 
     private void handle(@NotNull Player player, @NotNull UpdateStatePacket packet) {

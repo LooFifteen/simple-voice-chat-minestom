@@ -1,5 +1,6 @@
 package dev.lu15.voicechat;
 
+import dev.lu15.voicechat.network.minecraft.VoiceState;
 import java.net.SocketAddress;
 import java.util.UUID;
 import net.minestom.server.tag.Tag;

@@ -1,6 +1,7 @@
-package dev.lu15.voicechat.network.minecraft.packets;
+package dev.lu15.voicechat.network.minecraft.packets.clientbound;
 
-import dev.lu15.voicechat.VoiceState;
+import dev.lu15.voicechat.network.minecraft.VoiceState;
+import dev.lu15.voicechat.network.NetworkTypes;
 import dev.lu15.voicechat.network.minecraft.Packet;
 import java.util.Collection;
 import net.minestom.server.network.NetworkBuffer;
@@ -10,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
 public record VoiceStatesPacket(@NotNull Collection<VoiceState> states) implements Packet<VoiceStatesPacket> {
 
     public static final @NotNull NetworkBuffer.Type<VoiceStatesPacket> SERIALIZER = NetworkBufferTemplate.template(
-            Packet.IntIndexedCollection(VoiceState.NETWORK_TYPE), VoiceStatesPacket::states,
+            NetworkTypes.IntIndexedCollection(VoiceState.NETWORK_TYPE), VoiceStatesPacket::states,
             VoiceStatesPacket::new
     );
 

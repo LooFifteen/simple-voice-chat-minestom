@@ -1,4 +1,4 @@
-package dev.lu15.voicechat.network.minecraft.packets;
+package dev.lu15.voicechat.network.minecraft.packets.serverbound;
 
 import dev.lu15.voicechat.network.minecraft.Packet;
 import net.minestom.server.network.NetworkBuffer;
