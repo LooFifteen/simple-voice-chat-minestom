@@ -14,10 +14,12 @@ import dev.lu15.voicechat.network.voice.packets.YeaImHerePacket;
 import dev.lu15.voicechat.network.voice.packets.YouHereBroPacket;
 import java.util.Arrays;
 import java.util.UUID;
+import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
 import net.minestom.server.network.NetworkBuffer;
 import net.minestom.server.utils.collection.ObjectArray;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("UnstableApiUsage") // thanks, minestom
 public final class VoicePacketHandler {
@@ -44,11 +46,14 @@ public final class VoicePacketHandler {
         this.suppliers.set(id, (NetworkBuffer.Type<VoicePacket<?>>) supplier);
     }
 
-    public @NotNull VoicePacket<?> read(@NotNull RawPacket packet) throws Exception {
+    public @Nullable VoicePacket<?> read(@NotNull RawPacket packet) throws Exception {
         byte[] data = packet.data();
         NetworkBuffer outer = NetworkBuffer.wrap(data, 0, data.length);
 
         if (outer.read(NetworkBuffer.BYTE) != MAGIC_BYTE) throw new IllegalStateException("invalid magic byte");
+
+        Player player = MinecraftServer.getConnectionManager().getOnlinePlayerByUuid(outer.read(NetworkBuffer.UUID));
+        if (player == null || !player.isOnline()) return null; // player has disconnected
 
         UUID secret = SecretUtilities.getSecret(outer.read(NetworkBuffer.UUID));
         if (secret == null) throw new IllegalStateException("no secret for player");

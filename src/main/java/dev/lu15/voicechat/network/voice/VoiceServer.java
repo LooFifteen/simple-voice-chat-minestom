@@ -118,6 +118,7 @@ public final class VoiceServer {
                 if (rawPacket == null) continue;
 
                 VoicePacket<?> packet = this.packetHandler.read(rawPacket);
+                if (packet == null) continue;
 
                 if (System.currentTimeMillis() - rawPacket.timestamp() > packet.ttl()) {
                     LOGGER.error("dropping expired voice packet: {}", packet);
