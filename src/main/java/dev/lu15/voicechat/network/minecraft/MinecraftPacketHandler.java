@@ -24,8 +24,8 @@ public final class MinecraftPacketHandler {
         this.register("voicechat:player_states", VoiceStatesPacket.SERIALIZER);
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Packet<T>> void register(@NotNull String id, @NotNull NetworkBuffer.Type<T> supplier) {
-        //noinspection unchecked
         this.serializers.put(id, (NetworkBuffer.Type<Packet<?>>) supplier);
     }
 

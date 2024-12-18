@@ -20,6 +20,7 @@ import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
+import net.minestom.server.utils.PacketSendingUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -99,14 +100,14 @@ final class VoiceChatImpl implements VoiceChat {
     private void handle(@NotNull Player player, @NotNull UpdateStatePacket packet) {
         // todo: set state when players disconnect from voice chat server - NOT when they disconnect from the minecraft server
         VoiceState state = new VoiceState(
-                player.getUuid(),
-                player.getUsername(),
                 packet.disabled(),
                 false,
+                player.getUuid(),
+                player.getUsername(),
                 null
         );
         player.setTag(Tags.PLAYER_STATE, state);
-        this.packetHandler.write(new VoiceStatePacket(state));
+        PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
 
         EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
     }

@@ -247,7 +247,7 @@ public final class VoiceServer {
 
             event.getSoundSelector().canHear(player).stream().filter(p -> {
                 if (p.equals(player)) return false;
-                return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).isDisabled();
+                return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).disabled();
             }).forEach(p -> this.write(p, soundPacket));
         });
     }
