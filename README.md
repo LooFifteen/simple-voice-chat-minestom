@@ -5,7 +5,7 @@
 
 ### Features
 - [x] Proximity voice chat
-- [ ] Sound categories
+- [x] Sound categories
 - [ ] Groups
 - [ ] Customisation
   - [ ] Codec

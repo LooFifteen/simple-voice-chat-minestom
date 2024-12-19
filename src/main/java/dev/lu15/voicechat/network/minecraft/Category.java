@@ -6,14 +6,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public record Category(
-        @NotNull String id,
         @NotNull String name,
         @Nullable String description,
         int @Nullable [] @NotNull [] icon
 ) {
 
     private static final int ICON_SIZE = 16;
-    private static final @NotNull NetworkBuffer.Type<int[][]> ICON_SERIALIZER = new NetworkBuffer.Type<>() {
+    public static final @NotNull NetworkBuffer.Type<int[][]> ICON_SERIALIZER = new NetworkBuffer.Type<>() {
         @Override
         public void write(@NotNull NetworkBuffer buffer, int[][] value) {
             for (int i = 0; i < ICON_SIZE; i++) {
@@ -35,7 +34,6 @@ public record Category(
         }
     };
     public static final @NotNull NetworkBuffer.Type<Category> NETWORK_TYPE = NetworkBufferTemplate.template(
-            NetworkBuffer.STRING, Category::id,
             NetworkBuffer.STRING, Category::name,
             NetworkBuffer.STRING.optional(), Category::description,
             ICON_SERIALIZER.optional(), Category::icon,

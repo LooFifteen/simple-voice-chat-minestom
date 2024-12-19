@@ -1,10 +1,14 @@
 package dev.lu15.voicechat;
 
+import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
+import dev.lu15.voicechat.network.minecraft.Category;
 import dev.lu15.voicechat.network.minecraft.VoiceState;
 import dev.lu15.voicechat.event.PlayerHandshakeVoiceChatEvent;
 import dev.lu15.voicechat.event.PlayerUpdateVoiceStateEvent;
 import dev.lu15.voicechat.network.minecraft.MinecraftPacketHandler;
 import dev.lu15.voicechat.network.minecraft.Packet;
+import dev.lu15.voicechat.network.minecraft.packets.clientbound.CategoryAddedPacket;
+import dev.lu15.voicechat.network.minecraft.packets.clientbound.CategoryRemovedPacket;
 import dev.lu15.voicechat.network.minecraft.packets.clientbound.VoiceStatePacket;
 import dev.lu15.voicechat.network.minecraft.packets.clientbound.HandshakeAcknowledgePacket;
 import dev.lu15.voicechat.network.minecraft.packets.serverbound.HandshakePacket;
@@ -14,6 +18,8 @@ import dev.lu15.voicechat.network.voice.VoiceServer;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
+import java.util.Collections;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
@@ -21,9 +27,12 @@ import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
+import net.minestom.server.registry.DynamicRegistry;
+import net.minestom.server.utils.NamespaceID;
 import net.minestom.server.utils.PacketSendingUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +41,7 @@ final class VoiceChatImpl implements VoiceChat {
     private static final @NotNull Logger LOGGER = LoggerFactory.getLogger(VoiceChatImpl.class);
 
     private final @NotNull MinecraftPacketHandler packetHandler = new MinecraftPacketHandler();
+    private final @NotNull DynamicRegistry<Category> categories = DynamicRegistry.create("voicechat:categories");
 
     private final @NotNull VoiceServer server;
     private final int port;
@@ -41,6 +51,10 @@ final class VoiceChatImpl implements VoiceChat {
     private VoiceChatImpl(@NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode, @NotNull String publicAddress) {
         this.port = port;
         this.publicAddress = publicAddress;
+
+        // minestom doesn't allow removal of items from registries by default, so
+        // we have to enable this feature to allow for the removal of categories
+        System.setProperty("minestom.registry.unsafe-ops", "true");
 
         EventNode<Event> voiceServerEventNode = EventNode.all("voice-server");
         eventNode.addChild(voiceServerEventNode);
@@ -70,6 +84,15 @@ final class VoiceChatImpl implements VoiceChat {
                 // likely to be caused by the client sending
                 // an invalid packet.
                 LOGGER.debug("failed to read plugin message", e);
+            }
+        });
+
+        // send existing categories to newly joining players
+        eventNode.addListener(PlayerJoinVoiceChatEvent.class, event -> {
+            for (Category category : this.categories.values()) {
+                DynamicRegistry.Key<Category> key = this.categories.getKey(category);
+                if (key == null) throw new IllegalStateException("category not found in registry");
+                this.sendPacket(event.getPlayer(), new CategoryAddedPacket(key.namespace(), category));
             }
         });
     }
@@ -128,6 +151,40 @@ final class VoiceChatImpl implements VoiceChat {
     @Override
     public <T extends VoicePacket<T>> void sendPacket(@NotNull Player player, @NotNull T packet) {
         this.server.write(player, packet);
+    }
+
+    @Override
+    public @NotNull @Unmodifiable Collection<Category> getCategories() {
+        return Collections.unmodifiableCollection(this.categories.values());
+    }
+
+    @Override
+    public DynamicRegistry.@NotNull Key<Category> addCategory(@NotNull NamespaceID id, @NotNull Category category) {
+        Category existing = this.categories.get(id);
+        DynamicRegistry.Key<Category> key = this.categories.register(id, category);
+
+        for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+            if (!player.hasTag(Tags.VOICE_CLIENT)) continue; // only send to voice chat clients
+
+            // remove the existing category if it exists, then add the new one
+            if (existing != null) this.sendPacket(player, new CategoryRemovedPacket(id));
+            this.sendPacket(player, new CategoryAddedPacket(id, category));
+        }
+
+        return key;
+    }
+
+    @Override
+    public boolean removeCategory(@NotNull DynamicRegistry.Key<Category> category) {
+        boolean removed = this.categories.remove(category.namespace());
+        if (!removed) return false;
+
+        for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+            if (!player.hasTag(Tags.VOICE_CLIENT)) continue; // only send to voice chat clients
+            this.sendPacket(player, new CategoryRemovedPacket(category.namespace()));
+        }
+
+        return true;
     }
 
     final static class BuilderImpl implements Builder {

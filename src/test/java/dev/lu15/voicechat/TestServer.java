@@ -1,13 +1,7 @@
 package dev.lu15.voicechat;
 
 import dev.lu15.voicechat.network.minecraft.Category;
-import dev.lu15.voicechat.network.minecraft.VoiceState;
-import dev.lu15.voicechat.network.minecraft.Group;
 import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.CategoryAddedPacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.GroupCreatedPacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.GroupChangedPacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.VoiceStatePacket;
 import net.kyori.adventure.text.Component;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.advancements.FrameType;
@@ -41,6 +35,7 @@ public final class TestServer {
         });
 
         VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 25565).enable();
+        voicechat.addCategory(NamespaceID.from("voicechat", "test"), new Category("Test", "A test category", null));
 
         Notification notification = new Notification(Component.text("Connected to voice chat"), FrameType.GOAL, Material.NOTE_BLOCK);
         MinecraftServer.getGlobalEventHandler().addListener(PlayerJoinVoiceChatEvent.class, event -> {

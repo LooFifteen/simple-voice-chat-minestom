@@ -1,11 +1,16 @@
 package dev.lu15.voicechat;
 
+import dev.lu15.voicechat.network.minecraft.Category;
 import dev.lu15.voicechat.network.minecraft.Packet;
 import dev.lu15.voicechat.network.voice.VoicePacket;
+import java.util.Collection;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
+import net.minestom.server.registry.DynamicRegistry;
+import net.minestom.server.utils.NamespaceID;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Unmodifiable;
 
 public sealed interface VoiceChat permits VoiceChatImpl {
 
@@ -22,6 +27,12 @@ public sealed interface VoiceChat permits VoiceChatImpl {
     <T extends Packet<T>> void sendPacket(@NotNull Player player, @NotNull T packet);
 
     <T extends VoicePacket<T>> void sendPacket(@NotNull Player player, @NotNull T packet);
+
+    @NotNull @Unmodifiable Collection<Category> getCategories();
+
+    @NotNull DynamicRegistry.Key<Category> addCategory(@NotNull NamespaceID id, @NotNull Category category);
+
+    boolean removeCategory(@NotNull DynamicRegistry.Key<Category> category);
 
     sealed interface Builder permits VoiceChatImpl.BuilderImpl {
 
