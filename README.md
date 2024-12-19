@@ -3,6 +3,17 @@
 > [!CAUTION]
 > This library is in development. It is not feature-complete but is usable. Please report any issues you find.
 
+### Features
+- [x] Proximity voice chat
+- [ ] Sound categories
+- [ ] Groups
+- [ ] Customisation
+  - [ ] Codec
+  - [x] Distance
+  - [ ] MTU
+  - [ ] Keepalive interval
+  - [ ] Recording
+
 ```kts
 repositories {
     mavenCentral() // minestom
