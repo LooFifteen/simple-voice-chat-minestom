@@ -12,7 +12,6 @@ import dev.lu15.voicechat.network.voice.packets.PlayerSoundPacket;
 import dev.lu15.voicechat.network.voice.packets.PositionedSoundPacket;
 import dev.lu15.voicechat.network.voice.packets.YeaImHerePacket;
 import dev.lu15.voicechat.network.voice.packets.YouHereBroPacket;
-import java.util.Arrays;
 import java.util.UUID;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
@@ -41,8 +40,8 @@ public final class VoicePacketHandler {
         this.register(0xA, YeaImHerePacket.SERIALIZER);
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends VoicePacket<T>> void register(int id, @NotNull NetworkBuffer.Type<T> supplier) {
-        //noinspection unchecked
         this.suppliers.set(id, (NetworkBuffer.Type<VoicePacket<?>>) supplier);
     }
 
@@ -55,7 +54,7 @@ public final class VoicePacketHandler {
         Player player = MinecraftServer.getConnectionManager().getOnlinePlayerByUuid(outer.read(NetworkBuffer.UUID));
         if (player == null || !player.isOnline()) return null; // player has disconnected
 
-        UUID secret = SecretUtilities.getSecret(outer.read(NetworkBuffer.UUID));
+        UUID secret = SecretUtilities.getSecret(player.getUuid());
         if (secret == null) throw new IllegalStateException("no secret for player");
 
         byte[] decrypted = AES.decrypt(secret, outer.read(NetworkBuffer.BYTE_ARRAY));
