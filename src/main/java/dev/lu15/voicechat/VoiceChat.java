@@ -52,11 +52,18 @@ public sealed interface VoiceChat permits VoiceChatImpl {
         @NotNull Builder publicAddress(@NotNull String publicAddress);
 
         /**
+         * Set the mtu of the voice server. This is used determine the largest size of a packet.
+         * By default, this is set to 1024.
+         * @param mtu the public address of the voice server
+         * @return this builder
+         */
+        @NotNull Builder setMTU(int mtu);
+
+        /**
          * Enable the voice chat server.
          * @return the voice chat server
          */
         @NotNull VoiceChat enable();
-
     }
 
 }
