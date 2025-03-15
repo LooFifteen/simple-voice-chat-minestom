@@ -46,11 +46,13 @@ final class VoiceChatImpl implements VoiceChat {
     private final @NotNull VoiceServer server;
     private final int port;
     private final @NotNull String publicAddress;
+    private final int mtu;
 
     @SuppressWarnings("PatternValidation")
-    private VoiceChatImpl(@NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode, @NotNull String publicAddress) {
+    private VoiceChatImpl(@NotNull InetAddress address, int port, int mtu, @NotNull EventNode<Event> eventNode, @NotNull String publicAddress) {
         this.port = port;
         this.publicAddress = publicAddress;
+        this.mtu = mtu;
 
         // minestom doesn't allow removal of items from registries by default, so
         // we have to enable this feature to allow for the removal of categories
@@ -118,7 +120,7 @@ final class VoiceChatImpl implements VoiceChat {
                     this.port,
                     player.getUuid(), // why is this sent? the client already knows the player's uuid
                     Codec.VOIP, // todo: configurable
-                    1024, // todo: configurable
+                    mtu,
                     48, // todo: configurable
                     1000, // todo: configurable
                     false, // todo: configurable
@@ -191,6 +193,7 @@ final class VoiceChatImpl implements VoiceChat {
 
         private final @NotNull InetAddress address;
         private final int port;
+        private int mtu = 1024;
 
         private @NotNull String publicAddress = ""; // this causes the client to attempt to connect to the same ip as the minecraft server
 
@@ -225,7 +228,13 @@ final class VoiceChatImpl implements VoiceChat {
                 MinecraftServer.getGlobalEventHandler().addChild(this.eventNode);
             }
 
-            return new VoiceChatImpl(this.address, this.port, this.eventNode, this.publicAddress);
+            return new VoiceChatImpl(this.address, this.port, this.mtu, this.eventNode, this.publicAddress);
+        }
+
+        @Override
+        public @NotNull Builder setMTU(int mtu) {
+            this.mtu = mtu;
+            return this;
         }
 
     }

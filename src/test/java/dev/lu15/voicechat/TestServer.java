@@ -34,7 +34,9 @@ public final class TestServer {
             event.getPlayer().setRespawnPoint(new Pos(0, 40, 0));
         });
 
-        VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 25565).enable();
+        VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 21000)
+                .setMTU(2048)
+                .enable();
         voicechat.addCategory(NamespaceID.from("voicechat", "test"), new Category("Test", "A test category", null));
 
         Notification notification = new Notification(Component.text("Connected to voice chat"), FrameType.GOAL, Material.NOTE_BLOCK);
@@ -44,9 +46,9 @@ public final class TestServer {
         });
 
         OpenToLAN.open();
-        MojangAuth.init();
+        //MojangAuth.init();
 
-        server.start("0.0.0.0", 25565);
+        server.start("0.0.0.0", 20000);
     }
 
 }
