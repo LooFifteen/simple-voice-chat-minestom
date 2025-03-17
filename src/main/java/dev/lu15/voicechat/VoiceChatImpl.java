@@ -1,25 +1,19 @@
 package dev.lu15.voicechat;
 
 import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
-import dev.lu15.voicechat.network.minecraft.Category;
-import dev.lu15.voicechat.network.minecraft.VoiceState;
+import dev.lu15.voicechat.network.minecraft.*;
 import dev.lu15.voicechat.event.PlayerHandshakeVoiceChatEvent;
 import dev.lu15.voicechat.event.PlayerUpdateVoiceStateEvent;
-import dev.lu15.voicechat.network.minecraft.MinecraftPacketHandler;
-import dev.lu15.voicechat.network.minecraft.Packet;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.CategoryAddedPacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.CategoryRemovedPacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.VoiceStatePacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.HandshakeAcknowledgePacket;
-import dev.lu15.voicechat.network.minecraft.packets.serverbound.HandshakePacket;
-import dev.lu15.voicechat.network.minecraft.packets.serverbound.UpdateStatePacket;
+import dev.lu15.voicechat.network.minecraft.packets.clientbound.*;
+import dev.lu15.voicechat.network.minecraft.packets.serverbound.*;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import dev.lu15.voicechat.network.voice.VoiceServer;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
+
+import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
@@ -27,7 +21,9 @@ import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
+import net.minestom.server.network.packet.server.ServerPacket;
 import net.minestom.server.registry.DynamicRegistry;
+import net.minestom.server.tag.Tag;
 import net.minestom.server.utils.NamespaceID;
 import net.minestom.server.utils.PacketSendingUtils;
 import org.jetbrains.annotations.NotNull;
@@ -47,6 +43,12 @@ final class VoiceChatImpl implements VoiceChat {
     private final int port;
     private final @NotNull String publicAddress;
     private final int mtu;
+
+    private HashMap<UUID, Group> groups = new HashMap<>();
+    private HashMap<Player, UUID> playerGroups = new HashMap<>();
+    private HashMap<UUID, ArrayList<Player>> groupPlayers = new HashMap<>();
+    private HashMap<UUID, String> groupPassword = new HashMap<>();
+
 
     @SuppressWarnings("PatternValidation")
     private VoiceChatImpl(@NotNull InetAddress address, int port, int mtu, @NotNull EventNode<Event> eventNode, @NotNull String publicAddress) {
@@ -78,6 +80,9 @@ final class VoiceChatImpl implements VoiceChat {
                 switch (packet) {
                     case HandshakePacket p -> this.handle(player, p);
                     case UpdateStatePacket p -> this.handle(player, p);
+                    case CreateGroupPacket p -> this.handle(player, p);
+                    case LeaveGroupPacket p -> this.handle(player, p);
+                    case JoinGroupPacket p -> this.handle(player, p);
                     case null -> LOGGER.warn("received unknown packet from {}: {}", player.getUsername(), channel);
                     default -> throw new UnsupportedOperationException("unimplemented packet: " + packet);
                 }
@@ -123,17 +128,72 @@ final class VoiceChatImpl implements VoiceChat {
                     mtu,
                     48, // todo: configurable
                     1000, // todo: configurable
-                    false, // todo: configurable
+                    true, // todo: configurable
                     this.publicAddress,
                     false // todo: configurable
             )));
+            groups.forEach((id, group) -> {
+                player.sendPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
+            });
         });
     }
 
     private void handle(@NotNull Player player, @NotNull UpdateStatePacket packet) {
         // todo: set state when players disconnect from voice chat server - NOT when they disconnect from the minecraft server
+        VoiceState oldstate = player.getTag(Tags.PLAYER_STATE);
+        UUID group = null;
+        if(oldstate!=null&&oldstate.group()!=null) {
+            group = oldstate.group();
+        }
         VoiceState state = new VoiceState(
                 packet.disabled(),
+                false,
+                player.getUuid(),
+                player.getUsername(),
+                group
+        );
+        player.setTag(Tags.PLAYER_STATE, state);
+        PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
+        EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
+    }
+
+    private void handle(@NotNull Player player, @NotNull CreateGroupPacket packet) {
+        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
+        boolean password = false;
+        if(packet.name().length()>24) return;
+        if(packet.password()!=null) {
+            if(packet.password().length()>24) return;
+            password = true;
+        }
+        Group group = new Group(UUID.randomUUID(), packet.name(), password, false, false, packet.type());
+        groupPassword.put(group.id(), packet.password());
+        groups.put(group.id(), group);
+        playerGroups.put(player, group.id());
+        groupPlayers.put(group.id(), new ArrayList<>(List.of(player)));
+        VoiceState state = new VoiceState(
+                false,
+                false,
+                player.getUuid(),
+                player.getUsername(),
+                group.id()
+        );
+        player.setTag(Tags.PLAYER_STATE, state);
+        PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
+        PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
+        player.sendPacket(this.packetHandler.write(new GroupChangedPacket(group.id(), false)));
+        //EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
+    }
+
+    private void handle(@NotNull Player player, @NotNull LeaveGroupPacket packet) {
+        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
+        VoiceState oldstate = player.getTag(Tags.PLAYER_STATE);
+        UUID group = null;
+        if(oldstate!=null&&oldstate.group()!=null) {
+            group = oldstate.group();
+        }
+        if(group==null) return;
+        VoiceState state = new VoiceState(
+                false,
                 false,
                 player.getUuid(),
                 player.getUsername(),
@@ -141,8 +201,46 @@ final class VoiceChatImpl implements VoiceChat {
         );
         player.setTag(Tags.PLAYER_STATE, state);
         PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
+        if(groupPlayers.get(group).size()>1) {
+            // more players
+            playerGroups.remove(player);
+            groupPlayers.get(group).remove(player);
+            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
+        } else {
+            // only player
+            groups.remove(group);
+            playerGroups.remove(player);
+            groupPlayers.remove(group);
+            groupPassword.remove(group);
+            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
+            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupRemovedPacket(group)));
+        }
+        //EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
+    }
 
-        EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
+    private void handle(@NotNull Player player, @NotNull JoinGroupPacket packet) {
+        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
+        if(!groups.containsKey(packet.group())) return;
+        String password = groupPassword.get(packet.group());
+        if(groupPassword!=null&&!Objects.equals(password, packet.password())) {
+            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), true)));
+            return;
+        }
+        VoiceState state = new VoiceState(
+                false,
+                false,
+                player.getUuid(),
+                player.getUsername(),
+                packet.group()
+        );
+        playerGroups.put(player, packet.group());
+        ArrayList<Player> players = groupPlayers.get(packet.group());
+        players.add(player);
+        groupPlayers.put(packet.group(), players);
+        player.setTag(Tags.PLAYER_STATE, state);
+        PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
+        player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), false)));
+        //EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
     }
 
     @Override
