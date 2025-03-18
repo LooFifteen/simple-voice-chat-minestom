@@ -6,6 +6,7 @@ import dev.lu15.voicechat.event.PlayerHandshakeVoiceChatEvent;
 import dev.lu15.voicechat.event.PlayerUpdateVoiceStateEvent;
 import dev.lu15.voicechat.network.minecraft.packets.clientbound.*;
 import dev.lu15.voicechat.network.minecraft.packets.serverbound.*;
+import dev.lu15.voicechat.network.voice.GroupManager;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import dev.lu15.voicechat.network.voice.VoiceServer;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
@@ -44,10 +45,7 @@ final class VoiceChatImpl implements VoiceChat {
     private final @NotNull String publicAddress;
     private final int mtu;
 
-    private HashMap<UUID, Group> groups = new HashMap<>();
-    private HashMap<Player, UUID> playerGroups = new HashMap<>();
-    private HashMap<UUID, ArrayList<Player>> groupPlayers = new HashMap<>();
-    private HashMap<UUID, String> groupPassword = new HashMap<>();
+    private final GroupManager groupManager = new GroupManager();
 
 
     @SuppressWarnings("PatternValidation")
@@ -62,7 +60,7 @@ final class VoiceChatImpl implements VoiceChat {
 
         EventNode<Event> voiceServerEventNode = EventNode.all("voice-server");
         eventNode.addChild(voiceServerEventNode);
-        this.server = new VoiceServer(this, address, port, voiceServerEventNode);
+        this.server = new VoiceServer(this, address, port, voiceServerEventNode, groupManager);
 
         this.server.start();
         LOGGER.info("voice server started on {}:{}", address, port);
@@ -132,7 +130,7 @@ final class VoiceChatImpl implements VoiceChat {
                     this.publicAddress,
                     false // todo: configurable
             )));
-            groups.forEach((id, group) -> {
+            groupManager.groups.forEach((id, group) -> {
                 player.sendPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
             });
         });
@@ -166,10 +164,10 @@ final class VoiceChatImpl implements VoiceChat {
             password = true;
         }
         Group group = new Group(UUID.randomUUID(), packet.name(), password, false, false, packet.type());
-        groupPassword.put(group.id(), packet.password());
-        groups.put(group.id(), group);
-        playerGroups.put(player, group.id());
-        groupPlayers.put(group.id(), new ArrayList<>(List.of(player)));
+        groupManager.groupPassword.put(group.id(), packet.password());
+        groupManager.groups.put(group.id(), group);
+        groupManager.playerGroups.put(player, group.id());
+        groupManager.groupPlayers.put(group.id(), new ArrayList<>(List.of(player)));
         VoiceState state = new VoiceState(
                 false,
                 false,
@@ -201,17 +199,17 @@ final class VoiceChatImpl implements VoiceChat {
         );
         player.setTag(Tags.PLAYER_STATE, state);
         PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
-        if(groupPlayers.get(group).size()>1) {
+        if(groupManager.groupPlayers.get(group).size()>1) {
             // more players
-            playerGroups.remove(player);
-            groupPlayers.get(group).remove(player);
+            groupManager.playerGroups.remove(player);
+            groupManager.groupPlayers.get(group).remove(player);
             player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
         } else {
             // only player
-            groups.remove(group);
-            playerGroups.remove(player);
-            groupPlayers.remove(group);
-            groupPassword.remove(group);
+            groupManager.groups.remove(group);
+            groupManager.playerGroups.remove(player);
+            groupManager.groupPlayers.remove(group);
+            groupManager.groupPassword.remove(group);
             player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
             PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupRemovedPacket(group)));
         }
@@ -220,9 +218,9 @@ final class VoiceChatImpl implements VoiceChat {
 
     private void handle(@NotNull Player player, @NotNull JoinGroupPacket packet) {
         if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
-        if(!groups.containsKey(packet.group())) return;
-        String password = groupPassword.get(packet.group());
-        if(groupPassword!=null&&!Objects.equals(password, packet.password())) {
+        if(!groupManager.groups.containsKey(packet.group())) return;
+        String password = groupManager.groupPassword.get(packet.group());
+        if(groupManager.groupPassword!=null&&!Objects.equals(password, packet.password())) {
             player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), true)));
             return;
         }
@@ -233,10 +231,10 @@ final class VoiceChatImpl implements VoiceChat {
                 player.getUsername(),
                 packet.group()
         );
-        playerGroups.put(player, packet.group());
-        ArrayList<Player> players = groupPlayers.get(packet.group());
+        groupManager.playerGroups.put(player, packet.group());
+        ArrayList<Player> players = groupManager.groupPlayers.get(packet.group());
         players.add(player);
-        groupPlayers.put(packet.group(), players);
+        groupManager.groupPlayers.put(packet.group(), players);
         player.setTag(Tags.PLAYER_STATE, state);
         PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
         player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), false)));

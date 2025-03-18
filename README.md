@@ -6,7 +6,7 @@
 ### Features
 - [x] Proximity voice chat
 - [x] Sound categories
-- [ ] Groups
+- [x] Groups
 - [ ] Customisation
   - [ ] Codec
   - [x] Distance
@@ -40,7 +40,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.Summiner:simple-vc-minestom:Tag'
+    implementation 'com.github.Summiner:simple-vc-minestom:main-SNAPSHOT'
 }
 ```
 </details>
