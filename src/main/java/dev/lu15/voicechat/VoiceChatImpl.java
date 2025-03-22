@@ -44,15 +44,25 @@ final class VoiceChatImpl implements VoiceChat {
     private final int port;
     private final @NotNull String publicAddress;
     private final int mtu;
+    private final Codec codec;
+    private final boolean groups;
+    private final boolean recording;
+    private final int distance;
+    private final int keepalive;
 
     private final GroupManager groupManager = new GroupManager();
 
 
     @SuppressWarnings("PatternValidation")
-    private VoiceChatImpl(@NotNull InetAddress address, int port, int mtu, @NotNull EventNode<Event> eventNode, @NotNull String publicAddress) {
+    private VoiceChatImpl(@NotNull InetAddress address, int port, @NotNull String publicAddress, @NotNull EventNode<Event> eventNode, int mtu, Codec codecc, boolean groups, int distance, int keepalive, boolean recording) {
         this.port = port;
         this.publicAddress = publicAddress;
         this.mtu = mtu;
+        this.codec = codecc;
+        this.groups = groups;
+        this.distance = distance;
+        this.keepalive = keepalive;
+        this.recording = recording;
 
         // minestom doesn't allow removal of items from registries by default, so
         // we have to enable this feature to allow for the removal of categories
@@ -60,7 +70,7 @@ final class VoiceChatImpl implements VoiceChat {
 
         EventNode<Event> voiceServerEventNode = EventNode.all("voice-server");
         eventNode.addChild(voiceServerEventNode);
-        this.server = new VoiceServer(this, address, port, voiceServerEventNode, groupManager);
+        this.server = new VoiceServer(this, address, port, voiceServerEventNode, groupManager, distance);
 
         this.server.start();
         LOGGER.info("voice server started on {}:{}", address, port);
@@ -121,14 +131,14 @@ final class VoiceChatImpl implements VoiceChat {
             player.sendPacket(this.packetHandler.write(new HandshakeAcknowledgePacket(
                     event.getSecret(),
                     this.port,
-                    player.getUuid(), // why is this sent? the client already knows the player's uuid
-                    Codec.VOIP, // todo: configurable
+                    player.getUuid(),
+                    codec,
                     mtu,
-                    48, // todo: configurable
-                    1000, // todo: configurable
-                    true, // todo: configurable
+                    distance,
+                    keepalive,
+                    groups,
                     this.publicAddress,
-                    false // todo: configurable
+                    recording // todo: configurable (recording)
             )));
             groupManager.groups.forEach((id, group) -> {
                 player.sendPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
@@ -290,6 +300,11 @@ final class VoiceChatImpl implements VoiceChat {
         private final @NotNull InetAddress address;
         private final int port;
         private int mtu = 1024;
+        private Codec codec = Codec.VOIP;
+        private int distance = 48;
+        private boolean groups = false;
+        private int keepalive = 1000;
+        private boolean recording = false;
 
         private @NotNull String publicAddress = ""; // this causes the client to attempt to connect to the same ip as the minecraft server
 
@@ -324,12 +339,42 @@ final class VoiceChatImpl implements VoiceChat {
                 MinecraftServer.getGlobalEventHandler().addChild(this.eventNode);
             }
 
-            return new VoiceChatImpl(this.address, this.port, this.mtu, this.eventNode, this.publicAddress);
+            return new VoiceChatImpl(this.address, this.port, this.publicAddress, this.eventNode, this.mtu, this.codec, this.groups, this.distance, this.keepalive, this.recording);
         }
 
         @Override
-        public @NotNull Builder setMTU(int mtu) {
+        public @NotNull Builder setMTU(Integer mtu) {
             this.mtu = mtu;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder setCodec(Codec codec) {
+            this.codec = codec;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder setDistance(Integer distance) {
+            this.distance = distance;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder enableGroups(Boolean enabled) {
+            this.groups = enabled;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder setKeepalive(Integer keepalive) {
+            this.keepalive = keepalive;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder enableRecording(Boolean enabled) {
+            this.recording = enabled;
             return this;
         }
 

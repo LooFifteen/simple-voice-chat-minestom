@@ -36,6 +36,11 @@ public final class TestServer {
 
         VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 21000)
                 .setMTU(2048)
+                .setCodec(Codec.VOIP)
+                .enableGroups(true)
+                .setDistance(64)
+                .setKeepalive(1000)
+                .enableRecording(true)
                 .enable();
         voicechat.addCategory(NamespaceID.from("voicechat", "test"), new Category("Test", "A test category", null));
 

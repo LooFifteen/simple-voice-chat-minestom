@@ -1,18 +1,18 @@
 # Simple Voice Chat for Minestom
 
 > [!CAUTION]
-> This library is in development. It is not feature-complete but is usable. Please report any issues you find.
+> This library is feature complete but there is still a potential for bugs, please report all of them [here](https://github.com/Summiner/simple-vc-minestom/issues)
 
 ### Features
 - [x] Proximity voice chat
 - [x] Sound categories
 - [x] Groups
-- [ ] Customisation
-  - [ ] Codec
+- [x] Customisation
+  - [x] Codec
   - [x] Distance
   - [x] MTU
-  - [ ] Keepalive interval
-  - [ ] Recording
+  - [x] Keepalive
+  - [x] Recording
 
 ### Installation
 <details>

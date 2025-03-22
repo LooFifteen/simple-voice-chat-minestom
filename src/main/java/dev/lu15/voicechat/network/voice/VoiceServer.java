@@ -47,14 +47,16 @@ public final class VoiceServer {
     private final @NotNull InetAddress address;
     private final @NotNull GroupManager groupManager;
     private final int port;
+    private final int distance;
 
     private boolean running;
     private long lastKeepAlive;
 
-    public VoiceServer(@NotNull VoiceChat voiceChat, @NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode, @NotNull GroupManager groupManager) {
+    public VoiceServer(@NotNull VoiceChat voiceChat, @NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode, @NotNull GroupManager groupManager, int distance) {
         this.voiceChat = voiceChat;
         this.address = address;
         this.port = port;
+        this.distance = distance;
         this.groupManager = groupManager;
         eventNode.addListener(PlayerDisconnectEvent.class, event -> {
             Player player = event.getPlayer();
@@ -228,7 +230,7 @@ public final class VoiceServer {
     }
 
     private void handle(@NotNull Player player, @NotNull MicrophonePacket packet) {
-        PlayerMicrophoneEvent event = new PlayerMicrophoneEvent(player, packet.data());
+        PlayerMicrophoneEvent event = new PlayerMicrophoneEvent(player, packet.data(), distance);
         VoiceState oldstate = player.getTag(Tags.PLAYER_STATE);
         if(oldstate.group()==null) {
             EventDispatcher.callCancellable(event, () -> {
