@@ -25,7 +25,7 @@ indra {
 
     configurePublications {
         pom {
-            inceptionYear = "2024"
+            inceptionYear = "2025"
 
             developers {
                 developer {

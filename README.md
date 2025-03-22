@@ -1,7 +1,7 @@
 # Simple Voice Chat for Minestom
 
 > [!CAUTION]
-> This library is feature complete but there is still a potential for bugs, please report all of them [here](https://github.com/Summiner/simple-vc-minestom/issues)
+> This library is feature complete but there is still a potential for bugs, please report all of them [here](https://github.com/LooFifteen/simple-voice-chat-minestom/issues)
 
 ### Features
 - [x] Proximity voice chat
@@ -21,11 +21,11 @@
 ```kts
 repositories {
     mavenCentral()
-    maven("https://https://jitpack.io")
+    maven("https://repo.hypera.dev/snapshots/")
 }
 
 dependencies {
-    implementation("com.github.Summiner:simple-vc-minestom:main-SNAPSHOT")
+    implementation("dev.lu15:simple-voice-chat-minestom:0.1.0-SNAPSHOT")
 }
 ```
 </details>
@@ -36,11 +36,11 @@ dependencies {
 ```groovy
 repositories {
     mavenCentral()
-    maven { url 'https://jitpack.io' }
+    maven { url 'https://repo.hypera.dev/snapshots/' }
 }
 
 dependencies {
-    implementation 'com.github.Summiner:simple-vc-minestom:main-SNAPSHOT'
+    implementation 'dev.lu15:simple-voice-chat-minestom:0.1.0-SNAPSHOT'
 }
 ```
 </details>
@@ -50,14 +50,14 @@ dependencies {
 
 ```xml
 <repository>
-  <id>jitpack.io</id>
-  <url>https://jitpack.io</url>
+  <id>hypera.dev</id>
+  <url>https://repo.hypera.dev/snapshots/</url>
 </repository>
 
 <dependency>
-  <groupId>com.github.Summiner</groupId>
-    <artifactId>simple-vc-minestom</artifactId>
-  <version>Tag</version>
+  <groupId>dev.lu15</groupId>
+  <artifactId>simple-voice-chat-minestom</artifactId>
+  <version>0.1.0-SNAPSHOP</version>
 </dependency>
 ```
 </details>
