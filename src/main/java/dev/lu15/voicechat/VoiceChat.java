@@ -57,7 +57,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param mtu the public address of the voice server
          * @return this builder
          */
-        @NotNull Builder setMTU(Integer mtu);
+        @NotNull Builder mtu(Integer mtu);
 
         /**
          * Set the codec of the voice server. This is used by clients to determine which audio codec to use.
@@ -65,7 +65,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param codec the voice codec to be used by clients
          * @return this builder
          */
-        @NotNull Builder setCodec(Codec codec);
+        @NotNull Builder codec(Codec codec);
 
         /**
          * Set the voice distance of the server. This is used to determine how far users can hear each other from..
@@ -73,7 +73,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param distance the distance players can hear each other from.
          * @return this builder
          */
-        @NotNull Builder setDistance(Integer distance);
+        @NotNull Builder distance(Integer distance);
 
         /**
          * Enables/Disables the use of groups on the server.
@@ -81,7 +81,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param enabled used to determine if groups should be enabled.
          * @return this builder
          */
-        @NotNull Builder enableGroups(Boolean enabled);
+        @NotNull Builder groups(Boolean enabled);
 
         /**
          * Set the keepalive delay for the server.
@@ -89,7 +89,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param keepalive used to determine what the keepalive delay should be set to.
          * @return this builder
          */
-        @NotNull Builder setKeepalive(Integer keepalive);
+        @NotNull Builder keepalive(Integer keepalive);
 
         /**
          * Enables/Disables the use of recording on the server.
@@ -97,7 +97,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param enabled used to determine if recording should be enabled.
          * @return this builder
          */
-        @NotNull Builder enableRecording(Boolean enabled);
+        @NotNull Builder recording(Boolean enabled);
 
         /**
          * Enable the voice chat server.

@@ -1,9 +1,7 @@
 package dev.lu15.voicechat;
 
-import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
+import dev.lu15.voicechat.event.*;
 import dev.lu15.voicechat.network.minecraft.*;
-import dev.lu15.voicechat.event.PlayerHandshakeVoiceChatEvent;
-import dev.lu15.voicechat.event.PlayerUpdateVoiceStateEvent;
 import dev.lu15.voicechat.network.minecraft.packets.clientbound.*;
 import dev.lu15.voicechat.network.minecraft.packets.serverbound.*;
 import dev.lu15.voicechat.network.voice.GroupManager;
@@ -12,9 +10,12 @@ import dev.lu15.voicechat.network.voice.VoiceServer;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.Collection;
+import java.util.Collections;
 
-import net.kyori.adventure.audience.Audience;
+
 import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
@@ -22,9 +23,7 @@ import net.minestom.server.event.Event;
 import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
-import net.minestom.server.network.packet.server.ServerPacket;
 import net.minestom.server.registry.DynamicRegistry;
-import net.minestom.server.tag.Tag;
 import net.minestom.server.utils.NamespaceID;
 import net.minestom.server.utils.PacketSendingUtils;
 import org.jetbrains.annotations.NotNull;
@@ -54,11 +53,20 @@ final class VoiceChatImpl implements VoiceChat {
 
 
     @SuppressWarnings("PatternValidation")
-    private VoiceChatImpl(@NotNull InetAddress address, int port, @NotNull String publicAddress, @NotNull EventNode<Event> eventNode, int mtu, Codec codecc, boolean groups, int distance, int keepalive, boolean recording) {
+    private VoiceChatImpl(@NotNull InetAddress address,
+                          int port,
+                          @NotNull String publicAddress,
+                          @NotNull EventNode<Event> eventNode,
+                          int mtu,
+                          Codec codec,
+                          boolean groups,
+                          int distance,
+                          int keepalive,
+                          boolean recording) {
         this.port = port;
         this.publicAddress = publicAddress;
         this.mtu = mtu;
-        this.codec = codecc;
+        this.codec = codec;
         this.groups = groups;
         this.distance = distance;
         this.keepalive = keepalive;
@@ -70,7 +78,7 @@ final class VoiceChatImpl implements VoiceChat {
 
         EventNode<Event> voiceServerEventNode = EventNode.all("voice-server");
         eventNode.addChild(voiceServerEventNode);
-        this.server = new VoiceServer(this, address, port, voiceServerEventNode, groupManager, distance);
+        this.server = new VoiceServer(this, address, voiceServerEventNode, groupManager, port, distance);
 
         this.server.start();
         LOGGER.info("voice server started on {}:{}", address, port);
@@ -140,18 +148,16 @@ final class VoiceChatImpl implements VoiceChat {
                     this.publicAddress,
                     recording // todo: configurable (recording)
             )));
-            groupManager.groups.forEach((id, group) -> {
-                player.sendPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
-            });
+            groupManager.getGroups().forEach((group) -> player.sendPacket(this.packetHandler.write(new GroupCreatedPacket(group))));
         });
     }
 
     private void handle(@NotNull Player player, @NotNull UpdateStatePacket packet) {
         // todo: set state when players disconnect from voice chat server - NOT when they disconnect from the minecraft server
-        VoiceState oldstate = player.getTag(Tags.PLAYER_STATE);
+        VoiceState oldState = player.getTag(Tags.PLAYER_STATE);
         UUID group = null;
-        if(oldstate!=null&&oldstate.group()!=null) {
-            group = oldstate.group();
+        if(oldState != null && oldState.group() != null) {
+            group = oldState.group();
         }
         VoiceState state = new VoiceState(
                 packet.disabled(),
@@ -169,15 +175,13 @@ final class VoiceChatImpl implements VoiceChat {
         if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
         boolean password = false;
         if(packet.name().length()>24) return;
-        if(packet.password()!=null) {
-            if(packet.password().length()>24) return;
+        if(packet.password() != null) {
+            if(packet.password().length() > 24) return;
             password = true;
         }
         Group group = new Group(UUID.randomUUID(), packet.name(), password, false, false, packet.type());
-        groupManager.groupPassword.put(group.id(), packet.password());
-        groupManager.groups.put(group.id(), group);
-        groupManager.playerGroups.put(player, group.id());
-        groupManager.groupPlayers.put(group.id(), new ArrayList<>(List.of(player)));
+        groupManager.createGroup(group, packet.password());
+        groupManager.setGroup(player, group);
         VoiceState state = new VoiceState(
                 false,
                 false,
@@ -189,17 +193,17 @@ final class VoiceChatImpl implements VoiceChat {
         PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
         PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
         player.sendPacket(this.packetHandler.write(new GroupChangedPacket(group.id(), false)));
-        //EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
+        EventDispatcher.call(new PlayerCreateGroupEvent(player, group));
     }
 
     private void handle(@NotNull Player player, @NotNull LeaveGroupPacket packet) {
         if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
-        VoiceState oldstate = player.getTag(Tags.PLAYER_STATE);
+        VoiceState oldState = player.getTag(Tags.PLAYER_STATE);
         UUID group = null;
-        if(oldstate!=null&&oldstate.group()!=null) {
-            group = oldstate.group();
+        if(oldState != null && oldState.group() != null) {
+            group = oldState.group();
         }
-        if(group==null) return;
+        if(group == null) return;
         VoiceState state = new VoiceState(
                 false,
                 false,
@@ -209,28 +213,25 @@ final class VoiceChatImpl implements VoiceChat {
         );
         player.setTag(Tags.PLAYER_STATE, state);
         PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
-        if(groupManager.groupPlayers.get(group).size()>1) {
+        if(groupManager.getPlayers(group).size() > 1) {
             // more players
-            groupManager.playerGroups.remove(player);
-            groupManager.groupPlayers.get(group).remove(player);
+            groupManager.leaveGroup(player);
             player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
         } else {
             // only player
-            groupManager.groups.remove(group);
-            groupManager.playerGroups.remove(player);
-            groupManager.groupPlayers.remove(group);
-            groupManager.groupPassword.remove(group);
+            groupManager.leaveGroup(player);
+            groupManager.removeGroup(group);
             player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
             PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupRemovedPacket(group)));
         }
-        //EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
+        EventDispatcher.call(new PlayerLeaveGroupEvent(player, groupManager.getGroup(group)));
     }
 
     private void handle(@NotNull Player player, @NotNull JoinGroupPacket packet) {
         if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
-        if(!groupManager.groups.containsKey(packet.group())) return;
-        String password = groupManager.groupPassword.get(packet.group());
-        if(groupManager.groupPassword!=null&&!Objects.equals(password, packet.password())) {
+        if(!groupManager.hasGroup(packet.group())) return;
+        String password = groupManager.getPassword(packet.group());
+        if(password != null && !Objects.equals(password, packet.password())) {
             player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), true)));
             return;
         }
@@ -241,14 +242,11 @@ final class VoiceChatImpl implements VoiceChat {
                 player.getUsername(),
                 packet.group()
         );
-        groupManager.playerGroups.put(player, packet.group());
-        ArrayList<Player> players = groupManager.groupPlayers.get(packet.group());
-        players.add(player);
-        groupManager.groupPlayers.put(packet.group(), players);
+        groupManager.setGroup(player, packet.group());
         player.setTag(Tags.PLAYER_STATE, state);
         PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
         player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), false)));
-        //EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
+        EventDispatcher.call(new PlayerJoinGroupEvent(player, groupManager.getGroup(packet.group())));
     }
 
     @Override
@@ -343,37 +341,37 @@ final class VoiceChatImpl implements VoiceChat {
         }
 
         @Override
-        public @NotNull Builder setMTU(Integer mtu) {
+        public @NotNull Builder mtu(Integer mtu) {
             this.mtu = mtu;
             return this;
         }
 
         @Override
-        public @NotNull Builder setCodec(Codec codec) {
+        public @NotNull Builder codec(Codec codec) {
             this.codec = codec;
             return this;
         }
 
         @Override
-        public @NotNull Builder setDistance(Integer distance) {
+        public @NotNull Builder distance(Integer distance) {
             this.distance = distance;
             return this;
         }
 
         @Override
-        public @NotNull Builder enableGroups(Boolean enabled) {
+        public @NotNull Builder groups(Boolean enabled) {
             this.groups = enabled;
             return this;
         }
 
         @Override
-        public @NotNull Builder setKeepalive(Integer keepalive) {
+        public @NotNull Builder keepalive(Integer keepalive) {
             this.keepalive = keepalive;
             return this;
         }
 
         @Override
-        public @NotNull Builder enableRecording(Boolean enabled) {
+        public @NotNull Builder recording(Boolean enabled) {
             this.recording = enabled;
             return this;
         }

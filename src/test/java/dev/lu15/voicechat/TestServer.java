@@ -9,7 +9,6 @@ import net.minestom.server.advancements.Notification;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.player.AsyncPlayerConfigurationEvent;
-import net.minestom.server.extras.MojangAuth;
 import net.minestom.server.extras.lan.OpenToLAN;
 import net.minestom.server.instance.InstanceContainer;
 import net.minestom.server.instance.block.Block;
@@ -35,12 +34,12 @@ public final class TestServer {
         });
 
         VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 21000)
-                .setMTU(2048)
-                .setCodec(Codec.VOIP)
-                .enableGroups(true)
-                .setDistance(64)
-                .setKeepalive(1000)
-                .enableRecording(true)
+                .mtu(2048)
+                .codec(Codec.VOIP)
+                .groups(true)
+                .distance(64)
+                .keepalive(1000)
+                .recording(true)
                 .enable();
         voicechat.addCategory(NamespaceID.from("voicechat", "test"), new Category("Test", "A test category", null));
 

@@ -20,7 +20,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import net.kyori.adventure.text.Component;
 import net.minestom.server.MinecraftServer;
@@ -52,7 +51,12 @@ public final class VoiceServer {
     private boolean running;
     private long lastKeepAlive;
 
-    public VoiceServer(@NotNull VoiceChat voiceChat, @NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode, @NotNull GroupManager groupManager, int distance) {
+    public VoiceServer(@NotNull VoiceChat voiceChat,
+                       @NotNull InetAddress address,
+                       @NotNull EventNode<Event> eventNode,
+                       @NotNull GroupManager groupManager,
+                       int port,
+                       int distance) {
         this.voiceChat = voiceChat;
         this.address = address;
         this.port = port;
@@ -231,8 +235,8 @@ public final class VoiceServer {
 
     private void handle(@NotNull Player player, @NotNull MicrophonePacket packet) {
         PlayerMicrophoneEvent event = new PlayerMicrophoneEvent(player, packet.data(), distance);
-        VoiceState oldstate = player.getTag(Tags.PLAYER_STATE);
-        if(oldstate.group()==null) {
+        VoiceState oldState = player.getTag(Tags.PLAYER_STATE);
+        if(oldState.group() == null) {
             EventDispatcher.callCancellable(event, () -> {
                 PlayerSoundPacket soundPacket = new PlayerSoundPacket(
                         player.getUuid(), // the channel is the sender's UUID
@@ -246,8 +250,8 @@ public final class VoiceServer {
 
                 event.getSoundSelector().canHear(player).stream().filter(p -> {
                     if (p.equals(player)) return false;
-                    VoiceState vs = p.getTag(Tags.PLAYER_STATE);
-                    if(vs!=null&&vs.group()!=null&&groupManager.getGroup(vs.group()).type()==Group.Type.ISOLATED) return false;
+                    VoiceState voiceState = p.getTag(Tags.PLAYER_STATE);
+                    if(voiceState != null && voiceState.group() != null && groupManager.getGroup(voiceState.group()).type() == Group.Type.ISOLATED) return false;
                     return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).disabled();
                 }).forEach(p -> this.write(p, soundPacket));
             });
@@ -295,8 +299,8 @@ public final class VoiceServer {
                         List<Player> players = event.getSoundSelector().canHear(player).stream().filter(p -> {
                             if (p.equals(player)) return false;
                             if(groupPlayers.contains(p)) return false;
-                            VoiceState vs = p.getTag(Tags.PLAYER_STATE);
-                            if(vs!=null&&vs.group()!=null&&groupManager.getGroup(vs.group()).type()==Group.Type.ISOLATED) return false;
+                            VoiceState voiceState = p.getTag(Tags.PLAYER_STATE);
+                            if(voiceState!= null && voiceState.group() != null && groupManager.getGroup(voiceState.group()).type() == Group.Type.ISOLATED) return false;
                             return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).disabled();
                         }).toList();
                         groupPlayers.forEach(p -> this.write(p, soundPacketGroup));
