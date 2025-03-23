@@ -14,14 +14,15 @@ public final class PlayerMicrophoneEvent implements PlayerInstanceEvent, Cancell
 
     private final @NotNull Player player;
 
-    private @NotNull SoundSelector soundSelector = SoundSelector.distance(48);
+    private @NotNull SoundSelector soundSelector;
 
     private byte @NotNull[] audio;
     private boolean cancelled;
 
-    public PlayerMicrophoneEvent(@NotNull Player player, byte @NotNull[] audio) {
+    public PlayerMicrophoneEvent(@NotNull Player player, byte @NotNull[] audio, int distance) {
         this.player = player;
         this.audio = audio;
+        this.soundSelector = SoundSelector.distance(distance);
     }
 
     @Override

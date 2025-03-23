@@ -9,7 +9,6 @@ import net.minestom.server.advancements.Notification;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.player.AsyncPlayerConfigurationEvent;
-import net.minestom.server.extras.MojangAuth;
 import net.minestom.server.extras.lan.OpenToLAN;
 import net.minestom.server.instance.InstanceContainer;
 import net.minestom.server.instance.block.Block;
@@ -34,7 +33,14 @@ public final class TestServer {
             event.getPlayer().setRespawnPoint(new Pos(0, 40, 0));
         });
 
-        VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 25565).enable();
+        VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 21000)
+                .mtu(2048)
+                .codec(Codec.VOIP)
+                .groups(true)
+                .distance(64)
+                .keepalive(1000)
+                .recording(true)
+                .enable();
         voicechat.addCategory(NamespaceID.from("voicechat", "test"), new Category("Test", "A test category", null));
 
         Notification notification = new Notification(Component.text("Connected to voice chat"), FrameType.GOAL, Material.NOTE_BLOCK);
@@ -44,9 +50,9 @@ public final class TestServer {
         });
 
         OpenToLAN.open();
-        MojangAuth.init();
+        //MojangAuth.init();
 
-        server.start("0.0.0.0", 25565);
+        server.start("0.0.0.0", 20000);
     }
 
 }

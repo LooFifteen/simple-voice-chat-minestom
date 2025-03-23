@@ -1,25 +1,21 @@
 package dev.lu15.voicechat;
 
-import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
-import dev.lu15.voicechat.network.minecraft.Category;
-import dev.lu15.voicechat.network.minecraft.VoiceState;
-import dev.lu15.voicechat.event.PlayerHandshakeVoiceChatEvent;
-import dev.lu15.voicechat.event.PlayerUpdateVoiceStateEvent;
-import dev.lu15.voicechat.network.minecraft.MinecraftPacketHandler;
-import dev.lu15.voicechat.network.minecraft.Packet;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.CategoryAddedPacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.CategoryRemovedPacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.VoiceStatePacket;
-import dev.lu15.voicechat.network.minecraft.packets.clientbound.HandshakeAcknowledgePacket;
-import dev.lu15.voicechat.network.minecraft.packets.serverbound.HandshakePacket;
-import dev.lu15.voicechat.network.minecraft.packets.serverbound.UpdateStatePacket;
+import dev.lu15.voicechat.event.*;
+import dev.lu15.voicechat.network.minecraft.*;
+import dev.lu15.voicechat.network.minecraft.packets.clientbound.*;
+import dev.lu15.voicechat.network.minecraft.packets.serverbound.*;
+import dev.lu15.voicechat.network.voice.GroupManager;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import dev.lu15.voicechat.network.voice.VoiceServer;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.Collection;
 import java.util.Collections;
+
+
 import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
@@ -46,11 +42,35 @@ final class VoiceChatImpl implements VoiceChat {
     private final @NotNull VoiceServer server;
     private final int port;
     private final @NotNull String publicAddress;
+    private final int mtu;
+    private final @NotNull Codec codec;
+    private final boolean groups;
+    private final boolean recording;
+    private final int distance;
+    private final int keepalive;
+
+    private final @NotNull GroupManager groupManager = new GroupManager();
+
 
     @SuppressWarnings("PatternValidation")
-    private VoiceChatImpl(@NotNull InetAddress address, int port, @NotNull EventNode<Event> eventNode, @NotNull String publicAddress) {
+    private VoiceChatImpl(@NotNull InetAddress address,
+                          int port,
+                          @NotNull String publicAddress,
+                          @NotNull EventNode<Event> eventNode,
+                          int mtu,
+                          @NotNull Codec codec,
+                          boolean groups,
+                          int distance,
+                          int keepalive,
+                          boolean recording) {
         this.port = port;
         this.publicAddress = publicAddress;
+        this.mtu = mtu;
+        this.codec = codec;
+        this.groups = groups;
+        this.distance = distance;
+        this.keepalive = keepalive;
+        this.recording = recording;
 
         // minestom doesn't allow removal of items from registries by default, so
         // we have to enable this feature to allow for the removal of categories
@@ -58,7 +78,7 @@ final class VoiceChatImpl implements VoiceChat {
 
         EventNode<Event> voiceServerEventNode = EventNode.all("voice-server");
         eventNode.addChild(voiceServerEventNode);
-        this.server = new VoiceServer(this, address, port, voiceServerEventNode);
+        this.server = new VoiceServer(this, address, voiceServerEventNode, groupManager, port, distance);
 
         this.server.start();
         LOGGER.info("voice server started on {}:{}", address, port);
@@ -76,6 +96,15 @@ final class VoiceChatImpl implements VoiceChat {
                 switch (packet) {
                     case HandshakePacket p -> this.handle(player, p);
                     case UpdateStatePacket p -> this.handle(player, p);
+                    case CreateGroupPacket p -> {
+                        if (groups) this.handle(player, p);
+                    }
+                    case LeaveGroupPacket p -> {
+                        if (groups) this.handle(player, p);
+                    }
+                    case JoinGroupPacket p -> {
+                        if (groups) this.handle(player, p);
+                    }
                     case null -> LOGGER.warn("received unknown packet from {}: {}", player.getUsername(), channel);
                     default -> throw new UnsupportedOperationException("unimplemented packet: " + packet);
                 }
@@ -116,31 +145,117 @@ final class VoiceChatImpl implements VoiceChat {
             player.sendPacket(this.packetHandler.write(new HandshakeAcknowledgePacket(
                     event.getSecret(),
                     this.port,
-                    player.getUuid(), // why is this sent? the client already knows the player's uuid
-                    Codec.VOIP, // todo: configurable
-                    1024, // todo: configurable
-                    48, // todo: configurable
-                    1000, // todo: configurable
-                    false, // todo: configurable
+                    player.getUuid(),
+                    codec,
+                    mtu,
+                    distance,
+                    keepalive,
+                    groups,
                     this.publicAddress,
-                    false // todo: configurable
+                    recording // todo: configurable (recording)
             )));
+            groupManager.getGroups().forEach((group) -> player.sendPacket(this.packetHandler.write(new GroupCreatedPacket(group))));
         });
     }
 
     private void handle(@NotNull Player player, @NotNull UpdateStatePacket packet) {
         // todo: set state when players disconnect from voice chat server - NOT when they disconnect from the minecraft server
+        VoiceState oldState = player.getTag(Tags.PLAYER_STATE);
+        UUID group = oldState == null ? null : oldState.group();
         VoiceState state = new VoiceState(
                 packet.disabled(),
                 false,
                 player.getUuid(),
                 player.getUsername(),
-                null
+                group
         );
         player.setTag(Tags.PLAYER_STATE, state);
         PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
-
         EventDispatcher.call(new PlayerUpdateVoiceStateEvent(player, state));
+    }
+
+    private void handle(@NotNull Player player, @NotNull CreateGroupPacket packet) {
+        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
+        boolean password = false;
+        if(packet.name().length()>24) return;
+        if(packet.password() != null) {
+            if(packet.password().length() > 24) return;
+            password = true;
+        }
+        Group group = new Group(UUID.randomUUID(), packet.name(), password, false, false, packet.type());
+
+        PlayerCreateGroupEvent event = new PlayerCreateGroupEvent(player, group);
+        EventDispatcher.callCancellable(event, () -> {
+            groupManager.createGroup(group, packet.password());
+            groupManager.setGroup(player, group);
+            VoiceState state = new VoiceState(
+                    false,
+                    false,
+                    player.getUuid(),
+                    player.getUsername(),
+                    group.id()
+            );
+            player.setTag(Tags.PLAYER_STATE, state);
+            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
+            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
+            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(group.id(), false)));
+        });
+    }
+
+    private void handle(@NotNull Player player, @NotNull LeaveGroupPacket packet) {
+        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
+        VoiceState oldState = player.getTag(Tags.PLAYER_STATE);
+        UUID group = oldState == null ? null : oldState.group();
+        if(group == null) return;
+
+        PlayerLeaveGroupEvent event = new PlayerLeaveGroupEvent(player, groupManager.getGroup(group));
+        EventDispatcher.callCancellable(event, () -> {
+            VoiceState state = new VoiceState(
+                    false,
+                    false,
+                    player.getUuid(),
+                    player.getUsername(),
+                    null
+            );
+            player.setTag(Tags.PLAYER_STATE, state);
+            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
+            if(groupManager.getPlayers(group).size() > 1) {
+                // more players
+                groupManager.leaveGroup(player);
+                player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
+            } else {
+                // only player
+                groupManager.leaveGroup(player);
+                groupManager.removeGroup(group);
+                player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
+                PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupRemovedPacket(group)));
+            }
+        });
+    }
+
+    private void handle(@NotNull Player player, @NotNull JoinGroupPacket packet) {
+        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
+        if(!groupManager.hasGroup(packet.group())) return;
+        String password = groupManager.getPassword(packet.group());
+        if(password != null && !Objects.equals(password, packet.password())) {
+            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), true)));
+            return;
+        }
+
+        PlayerJoinGroupEvent event = new PlayerJoinGroupEvent(player, groupManager.getGroup(packet.group()));
+        EventDispatcher.callCancellable(event, () -> {
+            VoiceState state = new VoiceState(
+                false,
+                false,
+                player.getUuid(),
+                player.getUsername(),
+                packet.group()
+            );
+            groupManager.setGroup(player, packet.group());
+            player.setTag(Tags.PLAYER_STATE, state);
+            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
+            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), false)));
+        });
     }
 
     @Override
@@ -191,6 +306,12 @@ final class VoiceChatImpl implements VoiceChat {
 
         private final @NotNull InetAddress address;
         private final int port;
+        private int mtu = 1024;
+        private @NotNull Codec codec = Codec.VOIP;
+        private int distance = 48;
+        private boolean groups = false;
+        private int keepalive = 1000;
+        private boolean recording = false;
 
         private @NotNull String publicAddress = ""; // this causes the client to attempt to connect to the same ip as the minecraft server
 
@@ -225,7 +346,43 @@ final class VoiceChatImpl implements VoiceChat {
                 MinecraftServer.getGlobalEventHandler().addChild(this.eventNode);
             }
 
-            return new VoiceChatImpl(this.address, this.port, this.eventNode, this.publicAddress);
+            return new VoiceChatImpl(this.address, this.port, this.publicAddress, this.eventNode, this.mtu, this.codec, this.groups, this.distance, this.keepalive, this.recording);
+        }
+
+        @Override
+        public @NotNull Builder mtu(int mtu) {
+            this.mtu = mtu;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder codec(Codec codec) {
+            this.codec = codec;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder distance(int distance) {
+            this.distance = distance;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder groups(boolean enabled) {
+            this.groups = enabled;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder keepalive(int keepalive) {
+            this.keepalive = keepalive;
+            return this;
+        }
+
+        @Override
+        public @NotNull Builder recording(boolean enabled) {
+            this.recording = enabled;
+            return this;
         }
 
     }
