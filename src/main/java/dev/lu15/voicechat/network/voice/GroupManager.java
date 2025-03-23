@@ -2,19 +2,16 @@ package dev.lu15.voicechat.network.voice;
 
 import dev.lu15.voicechat.network.minecraft.Group;
 import net.minestom.server.entity.Player;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.Collection;
-import java.util.UUID;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class GroupManager {
 
-    private final Map<UUID, Group> groups = new HashMap<>();
-    private final Map<Player, UUID> playerGroups = new HashMap<>();
-    private final Map<UUID, ArrayList<Player>> groupPlayers = new HashMap<>();
-    private final Map<UUID, String> groupPassword = new HashMap<>();
+    private final @NotNull Map<UUID, Group> groups = new HashMap<>();
+    private final @NotNull Map<Player, UUID> playerGroups = new HashMap<>();
+    private final @NotNull Map<UUID, ArrayList<Player>> groupPlayers = new HashMap<>();
+    private final @NotNull Map<UUID, String> groupPassword = new HashMap<>();
 
     public Group getGroup(Player player) {
         return groups.get(playerGroups.get(player));
@@ -28,11 +25,11 @@ public class GroupManager {
         return groups.values();
     }
 
-    public ArrayList<Player> getPlayers(Group group) {
+    public List<Player> getPlayers(Group group) {
         return groupPlayers.get(group.id());
     }
 
-    public ArrayList<Player> getPlayers(UUID group) {
+    public List<Player> getPlayers(UUID group) {
         return groupPlayers.get(group);
     }
 

@@ -69,19 +69,10 @@ dependencies {
 
 ```java
 VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 21000) // create a new voice chat instance
-        .setMTU(1024) // Set the mtu of the voice server. This is used determine the largest size of a packet.
+        .mtu(1024) // Set the mtu of the voice server. This is used determine the largest size of a packet.
+        .groups(true) // Enable groups
+        .recording(true) // 
         .publicAddress("voice.example.org:30000") // Set the public address of the voice server. This is used to tell clients where to connect to.
         .enable(); // Start the server
 ```
 </details>
-
-<details>
-<summary>Kotlin Example (TODO)</summary>
-
-```kotlin
-// Under Construction
-```
-</details>
-
-
-

@@ -57,7 +57,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param mtu the public address of the voice server
          * @return this builder
          */
-        @NotNull Builder mtu(Integer mtu);
+        @NotNull Builder mtu(int mtu);
 
         /**
          * Set the codec of the voice server. This is used by clients to determine which audio codec to use.
@@ -73,7 +73,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param distance the distance players can hear each other from.
          * @return this builder
          */
-        @NotNull Builder distance(Integer distance);
+        @NotNull Builder distance(int distance);
 
         /**
          * Enables/Disables the use of groups on the server.
@@ -81,7 +81,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param enabled used to determine if groups should be enabled.
          * @return this builder
          */
-        @NotNull Builder groups(Boolean enabled);
+        @NotNull Builder groups(boolean enabled);
 
         /**
          * Set the keepalive delay for the server.
@@ -89,7 +89,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param keepalive used to determine what the keepalive delay should be set to.
          * @return this builder
          */
-        @NotNull Builder keepalive(Integer keepalive);
+        @NotNull Builder keepalive(int keepalive);
 
         /**
          * Enables/Disables the use of recording on the server.
@@ -97,7 +97,7 @@ public sealed interface VoiceChat permits VoiceChatImpl {
          * @param enabled used to determine if recording should be enabled.
          * @return this builder
          */
-        @NotNull Builder recording(Boolean enabled);
+        @NotNull Builder recording(boolean enabled);
 
         /**
          * Enable the voice chat server.
