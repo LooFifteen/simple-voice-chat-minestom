@@ -1,0 +1,5 @@
+before_install:
+- source "$HOME/.sdkman/bin/sdkman-init.sh"
+- sdk update
+- sdk install java 21.0.6-tem
+- sdk use java 21.0.6-tem
