@@ -1,15 +1,19 @@
 package dev.lu15.voicechat;
 
 import dev.lu15.voicechat.network.minecraft.Category;
+import dev.lu15.voicechat.network.minecraft.Group;
 import dev.lu15.voicechat.network.minecraft.Packet;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import java.util.Collection;
+import java.util.UUID;
+
+import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
-import net.minestom.server.registry.DynamicRegistry;
-import net.minestom.server.utils.NamespaceID;
+import net.minestom.server.registry.RegistryKey;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 
 public sealed interface VoiceChat permits VoiceChatImpl {
@@ -30,9 +34,15 @@ public sealed interface VoiceChat permits VoiceChatImpl {
 
     @NotNull @Unmodifiable Collection<Category> getCategories();
 
-    @NotNull DynamicRegistry.Key<Category> addCategory(@NotNull NamespaceID id, @NotNull Category category);
+    @NotNull RegistryKey<Category> addCategory(@NotNull Key id, @NotNull Category category);
 
-    boolean removeCategory(@NotNull DynamicRegistry.Key<Category> category);
+    boolean removeCategory(@NotNull RegistryKey<Category> category);
+
+    @NotNull @Unmodifiable Collection<Group> getManagedGroups();
+
+    @Nullable Group createManagedGroup(@NotNull String name, @NotNull Group.Type type, @Nullable String password, boolean persistent, boolean hidden);
+    boolean removeManagedGroup(@NotNull UUID groupId);
+    boolean setPlayerManagedGroup(@NotNull Player player, @Nullable UUID groupId, @Nullable String passwordForNewGroup);
 
     sealed interface Builder permits VoiceChatImpl.BuilderImpl {
 

@@ -3,6 +3,7 @@ package dev.lu15.voicechat.network.voice;
 import dev.lu15.voicechat.network.minecraft.Group;
 import net.minestom.server.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
@@ -13,22 +14,27 @@ public class GroupManager {
     private final @NotNull Map<UUID, ArrayList<Player>> groupPlayers = new HashMap<>();
     private final @NotNull Map<UUID, String> groupPassword = new HashMap<>();
 
+    @Nullable
     public Group getGroup(Player player) {
-        return groups.get(playerGroups.get(player));
+        UUID groupId = playerGroups.get(player);
+        return groupId != null ? groups.get(groupId) : null;
     }
 
+    @Nullable
     public Group getGroup(UUID group) {
         return groups.get(group);
     }
 
     public Collection<Group> getGroups() {
-        return groups.values();
+        return Collections.unmodifiableCollection(groups.values());
     }
 
+    @Nullable
     public List<Player> getPlayers(Group group) {
-        return groupPlayers.get(group.id());
+        return getPlayers(group.id());
     }
 
+    @Nullable
     public List<Player> getPlayers(UUID group) {
         return groupPlayers.get(group);
     }
@@ -38,50 +44,69 @@ public class GroupManager {
     }
 
     public boolean hasGroup(Group group) {
-        return groups.containsValue(group);
+        return groups.containsKey(group.id());
     }
 
+    @Nullable
     public String getPassword(Group group) {
         return groupPassword.get(group.id());
     }
 
+    @Nullable
     public String getPassword(UUID group) {
         return groupPassword.get(group);
     }
 
-    public void createGroup(Group group, String password) {
+    public void createGroup(Group group, @Nullable String password) {
         groupPassword.put(group.id(), password);
         groups.put(group.id(), group);
-        groupPlayers.put(group.id(), new ArrayList<>());
+        groupPlayers.putIfAbsent(group.id(), new ArrayList<>());
     }
 
     public void setGroup(Player player, Group group) {
-        ArrayList<Player> players = groupPlayers.get(group.id());
-        players.add(player);
-        groupPlayers.put(group.id(), players);
-        playerGroups.put(player, group.id());
+        setGroup(player, group.id());
     }
 
     public void setGroup(Player player, UUID group) {
-        ArrayList<Player> players = groupPlayers.get(group);
-        players.add(player);
-        groupPlayers.put(group, players);
+        leaveGroup(player);
+
+        ArrayList<Player> players = groupPlayers.computeIfAbsent(group, k -> new ArrayList<>());
+        if (!players.contains(player)) {
+            players.add(player);
+        }
         playerGroups.put(player, group);
     }
 
     public void leaveGroup(Player player) {
-        groupPlayers.get(playerGroups.get(player)).remove(player);
-        playerGroups.remove(player);
+        UUID groupId = playerGroups.remove(player);
+        if (groupId != null) {
+            ArrayList<Player> playersInGroup = groupPlayers.get(groupId);
+            if (playersInGroup != null) {
+                playersInGroup.remove(player);
+            }
+        }
     }
 
     public void removeGroup(Group group) {
-        groups.remove(group.id());
-        groupPassword.remove(group.id());
+        removeGroup(group.id());
     }
 
-    public void removeGroup(UUID group) {
-        groups.remove(group);
-        groupPassword.remove(group);
-    }
+    public void removeGroup(UUID groupId) {
+        if (!groups.containsKey(groupId)) {
+            return;
+        }
 
+        List<Player> players = groupPlayers.get(groupId);
+        if (players != null) {
+            for (Player player : new ArrayList<>(players)) {
+                if (Objects.equals(playerGroups.get(player), groupId)) {
+                    playerGroups.remove(player);
+                }
+            }
+        }
+
+        groupPlayers.remove(groupId);
+        groups.remove(groupId);
+        groupPassword.remove(groupId);
+    }
 }

@@ -1,9 +1,9 @@
 package dev.lu15.voicechat.network.minecraft.packets.clientbound;
 
 import dev.lu15.voicechat.network.minecraft.Packet;
+import net.kyori.adventure.key.Key;
 import net.minestom.server.network.NetworkBuffer;
 import net.minestom.server.network.NetworkBufferTemplate;
-import net.minestom.server.utils.NamespaceID;
 import org.jetbrains.annotations.NotNull;
 
 public record CategoryRemovedPacket(@NotNull String category) implements Packet<CategoryRemovedPacket> {
@@ -13,7 +13,7 @@ public record CategoryRemovedPacket(@NotNull String category) implements Packet<
             CategoryRemovedPacket::new
     );
 
-    public CategoryRemovedPacket(@NotNull NamespaceID category) {
+    public CategoryRemovedPacket(@NotNull Key category) {
         this(category.toString().replace(':', '_'));
     }
 

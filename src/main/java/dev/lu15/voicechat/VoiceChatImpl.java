@@ -8,12 +8,10 @@ import dev.lu15.voicechat.network.voice.GroupManager;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import dev.lu15.voicechat.network.voice.VoiceServer;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
 
 
 import net.kyori.adventure.key.Key;
@@ -24,7 +22,7 @@ import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
 import net.minestom.server.registry.DynamicRegistry;
-import net.minestom.server.utils.NamespaceID;
+import net.minestom.server.registry.RegistryKey;
 import net.minestom.server.utils.PacketSendingUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,7 +35,7 @@ final class VoiceChatImpl implements VoiceChat {
     private static final @NotNull Logger LOGGER = LoggerFactory.getLogger(VoiceChatImpl.class);
 
     private final @NotNull MinecraftPacketHandler packetHandler = new MinecraftPacketHandler();
-    private final @NotNull DynamicRegistry<Category> categories = DynamicRegistry.create("voicechat:categories");
+    private final @NotNull DynamicRegistry<Category> categories = DynamicRegistry.create(Key.key("voicechat:categories"));
 
     private final @NotNull VoiceServer server;
     private final int port;
@@ -119,9 +117,9 @@ final class VoiceChatImpl implements VoiceChat {
         // send existing categories to newly joining players
         eventNode.addListener(PlayerJoinVoiceChatEvent.class, event -> {
             for (Category category : this.categories.values()) {
-                DynamicRegistry.Key<Category> key = this.categories.getKey(category);
+                RegistryKey<Category> key = this.categories.getKey(category);
                 if (key == null) throw new IllegalStateException("category not found in registry");
-                this.sendPacket(event.getPlayer(), new CategoryAddedPacket(key.namespace(), category));
+                this.sendPacket(event.getPlayer(), new CategoryAddedPacket(key.key().namespace(), category));
             }
         });
     }
@@ -175,87 +173,66 @@ final class VoiceChatImpl implements VoiceChat {
     }
 
     private void handle(@NotNull Player player, @NotNull CreateGroupPacket packet) {
-        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
-        boolean password = false;
-        if(packet.name().length()>24) return;
-        if(packet.password() != null) {
-            if(packet.password().length() > 24) return;
-            password = true;
-        }
-        Group group = new Group(UUID.randomUUID(), packet.name(), password, false, false, packet.type());
+        VoiceState playerVoiceState = player.getTag(Tags.PLAYER_STATE);
+        if (playerVoiceState == null || playerVoiceState.disabled()) return;
 
-        PlayerCreateGroupEvent event = new PlayerCreateGroupEvent(player, group);
+        if (packet.name().length() > 24) return;
+        if (packet.password() != null && packet.password().length() > 24) return;
+
+        // Player-created groups are not persistent and not hidden by default
+        Group prospectiveGroup = new Group(UUID.randomUUID(), packet.name(), packet.password() != null, false, false, packet.type());
+
+        PlayerCreateGroupEvent event = new PlayerCreateGroupEvent(player, prospectiveGroup);
         EventDispatcher.callCancellable(event, () -> {
-            groupManager.createGroup(group, packet.password());
-            groupManager.setGroup(player, group);
-            VoiceState state = new VoiceState(
-                    false,
-                    false,
-                    player.getUuid(),
-                    player.getUsername(),
-                    group.id()
-            );
-            player.setTag(Tags.PLAYER_STATE, state);
-            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
-            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
-            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(group.id(), false)));
+            groupManager.createGroup(prospectiveGroup, packet.password());
+            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupCreatedPacket(prospectiveGroup)));
+            // Now set the player's group using the managed method
+            // This will handle moving them from any old group and all necessary packet sending
+            setPlayerManagedGroup(player, prospectiveGroup.id(), packet.password());
         });
     }
 
     private void handle(@NotNull Player player, @NotNull LeaveGroupPacket packet) {
-        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
-        VoiceState oldState = player.getTag(Tags.PLAYER_STATE);
-        UUID group = oldState == null ? null : oldState.group();
-        if(group == null) return;
+        VoiceState playerVoiceState = player.getTag(Tags.PLAYER_STATE);
+        if (playerVoiceState == null || playerVoiceState.disabled()) return;
 
-        PlayerLeaveGroupEvent event = new PlayerLeaveGroupEvent(player, groupManager.getGroup(group));
+        UUID currentGroupId = playerVoiceState.group();
+        if (currentGroupId == null) return;
+
+        Group currentGroupObject = groupManager.getGroup(currentGroupId);
+        if (currentGroupObject == null) {
+            // Should not happen if state is consistent, but handle defensively
+            setPlayerManagedGroup(player, null, null); // Force remove from (ghost) group
+            return;
+        }
+
+        PlayerLeaveGroupEvent event = new PlayerLeaveGroupEvent(player, currentGroupObject);
         EventDispatcher.callCancellable(event, () -> {
-            VoiceState state = new VoiceState(
-                    false,
-                    false,
-                    player.getUuid(),
-                    player.getUsername(),
-                    null
-            );
-            player.setTag(Tags.PLAYER_STATE, state);
-            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
-            if(groupManager.getPlayers(group).size() > 1) {
-                // more players
-                groupManager.leaveGroup(player);
-                player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
-            } else {
-                // only player
-                groupManager.leaveGroup(player);
-                groupManager.removeGroup(group);
-                player.sendPacket(this.packetHandler.write(new GroupChangedPacket(null, false)));
-                PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupRemovedPacket(group)));
-            }
+            // Setting group to null will trigger leaving logic, including auto-removal of old group if needed
+            setPlayerManagedGroup(player, null, null);
         });
     }
 
     private void handle(@NotNull Player player, @NotNull JoinGroupPacket packet) {
-        if(player.getTag(Tags.PLAYER_STATE).disabled()) return;
-        if(!groupManager.hasGroup(packet.group())) return;
-        String password = groupManager.getPassword(packet.group());
-        if(password != null && !Objects.equals(password, packet.password())) {
-            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), true)));
-            return;
+        VoiceState playerVoiceState = player.getTag(Tags.PLAYER_STATE);
+        if (playerVoiceState == null || playerVoiceState.disabled()) return;
+
+        if (!groupManager.hasGroup(packet.group())) return;
+
+        Group targetGroup = groupManager.getGroup(packet.group());
+        if (targetGroup == null) return; // Should be caught by hasGroup, but defensive
+
+        // Check password before firing event
+        if (targetGroup.passwordProtected()) { // Assumes Group record has a boolean 'password' field, accessor is .password()
+            String actualPassword = groupManager.getPassword(packet.group());
+            if (!Objects.equals(actualPassword, packet.password())) {
+                player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), true)));
+                return;
+            }
         }
 
-        PlayerJoinGroupEvent event = new PlayerJoinGroupEvent(player, groupManager.getGroup(packet.group()));
-        EventDispatcher.callCancellable(event, () -> {
-            VoiceState state = new VoiceState(
-                false,
-                false,
-                player.getUuid(),
-                player.getUsername(),
-                packet.group()
-            );
-            groupManager.setGroup(player, packet.group());
-            player.setTag(Tags.PLAYER_STATE, state);
-            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(state)));
-            player.sendPacket(this.packetHandler.write(new GroupChangedPacket(packet.group(), false)));
-        });
+        PlayerJoinGroupEvent event = new PlayerJoinGroupEvent(player, targetGroup);
+        EventDispatcher.callCancellable(event, () -> setPlayerManagedGroup(player, packet.group(), packet.password()));
     }
 
     @Override
@@ -274,14 +251,13 @@ final class VoiceChatImpl implements VoiceChat {
     }
 
     @Override
-    public DynamicRegistry.@NotNull Key<Category> addCategory(@NotNull NamespaceID id, @NotNull Category category) {
+    public @NotNull RegistryKey<Category> addCategory(@NotNull Key id, @NotNull Category category) {
         Category existing = this.categories.get(id);
-        DynamicRegistry.Key<Category> key = this.categories.register(id, category);
+        RegistryKey<Category> key = this.categories.register(id, category);
 
         for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
-            if (!player.hasTag(Tags.VOICE_CLIENT)) continue; // only send to voice chat clients
+            if (!player.hasTag(Tags.VOICE_CLIENT)) continue;
 
-            // remove the existing category if it exists, then add the new one
             if (existing != null) this.sendPacket(player, new CategoryRemovedPacket(id));
             this.sendPacket(player, new CategoryAddedPacket(id, category));
         }
@@ -290,15 +266,178 @@ final class VoiceChatImpl implements VoiceChat {
     }
 
     @Override
-    public boolean removeCategory(@NotNull DynamicRegistry.Key<Category> category) {
-        boolean removed = this.categories.remove(category.namespace());
+    public boolean removeCategory(@NotNull RegistryKey<Category> category) {
+        boolean removed = this.categories.remove(category.key());
         if (!removed) return false;
 
         for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
-            if (!player.hasTag(Tags.VOICE_CLIENT)) continue; // only send to voice chat clients
-            this.sendPacket(player, new CategoryRemovedPacket(category.namespace()));
+            if (!player.hasTag(Tags.VOICE_CLIENT)) continue;
+            this.sendPacket(player, new CategoryRemovedPacket(category.key()));
         }
 
+        return true;
+    }
+
+    private void checkAndAutoRemoveGroup(@Nullable UUID groupIdToCheck) {
+        if (!this.groups) return;
+        if (groupIdToCheck == null) return;
+
+        Group groupObject = groupManager.getGroup(groupIdToCheck);
+        if (groupObject != null && !groupObject.persistent()) {
+            List<Player> playersInGroup = groupManager.getPlayers(groupIdToCheck);
+            if (playersInGroup == null || playersInGroup.isEmpty()) {
+                if (groupManager.hasGroup(groupIdToCheck)) {
+                    groupManager.removeGroup(groupIdToCheck);
+                    PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupRemovedPacket(groupIdToCheck)));
+                    LOGGER.info("Group '{}' ({}) auto-removed as it became empty and was not persistent.", groupObject.name(), groupIdToCheck);
+                }
+            }
+        }
+    }
+
+    @Override
+    public @NotNull @Unmodifiable Collection<Group> getManagedGroups() {
+        if (!this.groups) { // Respect group feature flag
+            return Collections.emptyList();
+        }
+        return this.groupManager.getGroups(); // groupManager.getGroups() already returns Collection<Group>
+    }
+
+    @Override
+    public @Nullable Group createManagedGroup(@NotNull String name, @NotNull Group.Type type, @Nullable String password, boolean persistent, boolean hidden) {
+        if (!this.groups) {
+            LOGGER.warn("Attempted to create a group via API, but groups are disabled.");
+            return null;
+        }
+        if (name.length() > 24) {
+            LOGGER.warn("API: Group name '{}' too long (max 24 chars).", name);
+            return null;
+        }
+        if (password != null && password.length() > 24) {
+            LOGGER.warn("API: Group password too long (max 24 chars).");
+            return null;
+        }
+
+        Group group = new Group(UUID.randomUUID(), name, password != null, persistent, hidden, type);
+        groupManager.createGroup(group, password);
+        PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupCreatedPacket(group)));
+        LOGGER.info("Group '{}' ({}) created via API.", group.name(), group.id());
+        return group;
+    }
+
+    @Override
+    public boolean removeManagedGroup(@NotNull UUID groupId) {
+        if (!this.groups) {
+            LOGGER.warn("Attempted to remove a group via API, but groups are disabled.");
+            return false;
+        }
+        Group group = groupManager.getGroup(groupId);
+        if (group == null) {
+            LOGGER.warn("API: Attempted to remove non-existent group: {}", groupId);
+            return false;
+        }
+
+        List<Player> playersInGroupNullable = groupManager.getPlayers(groupId);
+        List<Player> playersInGroupCopy = (playersInGroupNullable == null) ?
+                Collections.emptyList() : new ArrayList<>(playersInGroupNullable);
+
+        for (Player player : playersInGroupCopy) {
+            VoiceState oldState = player.getTag(Tags.PLAYER_STATE);
+            if (oldState != null && groupId.equals(oldState.group())) {
+                VoiceState newState = new VoiceState(
+                        oldState.disabled(),
+                        false,
+                        player.getUuid(),
+                        player.getUsername(),
+                        null
+                );
+                player.setTag(Tags.PLAYER_STATE, newState);
+                PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(newState)));
+                this.sendPacket(player, new GroupChangedPacket(null, false));
+            }
+        }
+
+        groupManager.removeGroup(groupId);
+        PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new GroupRemovedPacket(groupId)));
+        LOGGER.info("Group '{}' ({}) removed via API.", group.name(), group.id());
+        return true;
+    }
+
+    @Override
+    public boolean setPlayerManagedGroup(@NotNull Player player, @Nullable UUID newGroupId, @Nullable String passwordForNewGroup) {
+        if (!this.groups) {
+            LOGGER.warn("Player {} group set attempt failed: groups disabled.", player.getUsername());
+            return false;
+        }
+
+        VoiceState currentVoiceState = player.getTag(Tags.PLAYER_STATE);
+        if (currentVoiceState == null) {
+            LOGGER.warn("Player {} group set attempt failed: no voice state.", player.getUsername());
+            return false;
+        }
+        if (currentVoiceState.disabled()) {
+            LOGGER.warn("Player {} group set attempt failed: voice chat disabled.", player.getUsername());
+            return false;
+        }
+
+        UUID oldGroupId = currentVoiceState.group();
+
+        if (newGroupId == null) {
+            if (oldGroupId == null) return true;
+
+            Group oldGroupObject = groupManager.getGroup(oldGroupId);
+
+            groupManager.leaveGroup(player);
+            VoiceState updatedState = new VoiceState(false, false, player.getUuid(), player.getUsername(), null);
+            player.setTag(Tags.PLAYER_STATE, updatedState);
+            PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(updatedState)));
+            this.sendPacket(player, new GroupChangedPacket(null, false));
+            checkAndAutoRemoveGroup(oldGroupId);
+            if (oldGroupObject != null) {
+                LOGGER.info("Player {} left group '{}' ({}) via managed set.", player.getUsername(), oldGroupObject.name(), oldGroupId);
+            } else {
+                LOGGER.info("Player {} left (ghost) group {} via managed set.", player.getUsername(), oldGroupId);
+            }
+            return true;
+        }
+
+        if (Objects.equals(oldGroupId, newGroupId)) return true;
+
+        Group targetGroup = groupManager.getGroup(newGroupId);
+        if (targetGroup == null) {
+            LOGGER.warn("Player {} failed to join group {}: group not found.", player.getUsername(), newGroupId);
+            return false;
+        }
+
+        if (targetGroup.passwordProtected()) {
+            String actualPassword = groupManager.getPassword(newGroupId);
+            if (!Objects.equals(actualPassword, passwordForNewGroup)) {
+                LOGGER.warn("Player {} failed password for group '{}' ({}).", player.getUsername(), targetGroup.name(), newGroupId);
+                this.sendPacket(player, new GroupChangedPacket(newGroupId, true));
+                return false;
+            }
+        }
+
+        if (oldGroupId != null) {
+            groupManager.leaveGroup(player);
+            Group oldGrpObjForLogging = groupManager.getGroup(oldGroupId);
+            if (oldGrpObjForLogging != null) {
+                LOGGER.info("Player {} left old group '{}' ({}) to join new one.", player.getUsername(), oldGrpObjForLogging.name(), oldGroupId);
+            } else {
+                LOGGER.info("Player {} left old (ghost) group {} to join new one.", player.getUsername(), oldGroupId);
+            }
+        }
+
+        groupManager.setGroup(player, newGroupId);
+        VoiceState newState = new VoiceState(false, false, player.getUuid(), player.getUsername(), newGroupId);
+        player.setTag(Tags.PLAYER_STATE, newState);
+        PacketSendingUtils.broadcastPlayPacket(this.packetHandler.write(new VoiceStatePacket(newState)));
+        this.sendPacket(player, new GroupChangedPacket(newGroupId, false));
+        LOGGER.info("Player {} joined group '{}' ({}) via managed set.", player.getUsername(), targetGroup.name(), newGroupId);
+
+        if (oldGroupId != null) {
+            checkAndAutoRemoveGroup(oldGroupId);
+        }
         return true;
     }
 
@@ -384,7 +523,5 @@ final class VoiceChatImpl implements VoiceChat {
             this.recording = enabled;
             return this;
         }
-
     }
-
 }
