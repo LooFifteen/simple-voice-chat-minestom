@@ -1,7 +1,7 @@
 package dev.lu15.voicechat.network.minecraft.packets.serverbound;
 
+import dev.lu15.voicechat.group.Group;
 import dev.lu15.voicechat.network.NetworkTypes;
-import dev.lu15.voicechat.network.minecraft.Group;
 import dev.lu15.voicechat.network.minecraft.Packet;
 import net.minestom.server.network.NetworkBuffer;
 import net.minestom.server.network.NetworkBufferTemplate;

@@ -1,8 +1,8 @@
 package dev.lu15.voicechat;
 
+import dev.lu15.voicechat.group.Group;
 import dev.lu15.voicechat.network.minecraft.Category;
 import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
-import dev.lu15.voicechat.network.minecraft.Group;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -50,10 +50,10 @@ public final class TestServer {
         voicechat = VoiceChat.builder("0.0.0.0", 21000) // Assign to static field
                 .mtu(2048)
                 .codec(VOIP)
-                .groups(true)
+                .groups()
                 .distance(64)
-                .keepalive(1000)
-                .recording(true)
+                .keepAlive(1000)
+                .recording()
                 .enable();
         voicechat.addCategory(Key.key("voicechat", "test"), new Category("Test", "A test category", null)); // Added default range/suffix for Category
 
@@ -95,12 +95,17 @@ public final class TestServer {
                 actualPassword = password;
             }
 
-            Group createdGroup = voicechat.createManagedGroup(name, type, actualPassword , persistent, hidden);
-            if (createdGroup != null) {
-                sender.sendMessage(Component.text("Group created: " + createdGroup.name() + " (ID: " + createdGroup.id() + ")", NamedTextColor.GREEN));
-            } else {
-                sender.sendMessage(Component.text("Failed to create group. Check console for details (e.g., groups disabled, invalid params).", NamedTextColor.RED));
-            }
+            Group.Builder builder = Group.builder()
+                    .name(name)
+                    .type(type)
+                    .password(password);
+            if (persistent) builder.persistent();
+            if (hidden) builder.hidden();
+            Group createdGroup = builder.build();
+
+            voicechat.registerGroup(createdGroup);
+
+            sender.sendMessage(Component.text("Group created: " + createdGroup.getName() + " (ID: " + createdGroup.getId() + ")", NamedTextColor.GREEN));
         }, nameArg, passwordArg, persistentArg, hiddenArg, typeArg);
         commandManager.register(createGroupCommand);
 
@@ -113,11 +118,9 @@ public final class TestServer {
             String uuidStr = context.get(groupIdArg);
             try {
                 UUID groupId = UUID.fromString(uuidStr);
-                if (voicechat.removeManagedGroup(groupId)) {
-                    sender.sendMessage(Component.text("Group " + groupId + " removed successfully.", NamedTextColor.GREEN));
-                } else {
-                    sender.sendMessage(Component.text("Failed to remove group " + groupId + ". It might not exist or groups might be disabled.", NamedTextColor.RED));
-                }
+                Group group = voicechat.getGroup(groupId).orElseThrow();
+                voicechat.unregisterGroup(group);
+                sender.sendMessage(Component.text("Group " + groupId + " removed successfully.", NamedTextColor.GREEN));
             } catch (IllegalArgumentException e) {
                 sender.sendMessage(Component.text("Invalid UUID format: " + uuidStr, NamedTextColor.RED));
             }
@@ -170,14 +173,12 @@ public final class TestServer {
                 }
             }
 
-            if (voicechat.setPlayerManagedGroup(targetPlayer, targetGroupId, actualPassword)) {
-                if (targetGroupId != null) {
-                    sender.sendMessage(Component.text("Set " + targetPlayer.getUsername() + "'s group to " + targetGroupId + ".", NamedTextColor.GREEN));
-                } else {
-                    sender.sendMessage(Component.text(targetPlayer.getUsername() + " removed from any group.", NamedTextColor.GREEN));
-                }
+            Group group = voicechat.getGroup(targetGroupId).orElse(null);
+            voicechat.setGroup(targetPlayer, group);
+            if (targetGroupId != null) {
+                sender.sendMessage(Component.text("Set " + targetPlayer.getUsername() + "'s group to " + targetGroupId + ".", NamedTextColor.GREEN));
             } else {
-                sender.sendMessage(Component.text("Failed to set " + targetPlayer.getUsername() + "'s group. Check console/params.", NamedTextColor.RED));
+                sender.sendMessage(Component.text(targetPlayer.getUsername() + " removed from any group.", NamedTextColor.GREEN));
             }
         }, playerArg, targetGroupIdArg, groupPasswordArg);
         commandManager.register(setPlayerGroupCommand);
@@ -185,19 +186,19 @@ public final class TestServer {
         // Command: /vc_listgroups
         var listGroupsCommand = new Command("vc_listgroups");
         listGroupsCommand.setDefaultExecutor((sender, context) -> {
-            Collection<Group> groups = voicechat.getManagedGroups();
+            Collection<Group> groups = voicechat.getGroups();
             if (groups.isEmpty()) {
                 sender.sendMessage(Component.text("No voice chat groups found or groups are disabled.", NamedTextColor.YELLOW));
                 return;
             }
             sender.sendMessage(Component.text("Current Voice Chat Groups:", NamedTextColor.GOLD));
             for (Group group : groups) {
-                sender.sendMessage(Component.text("- Name: " + group.name() +
-                                ", ID: " + group.id() +
-                                ", Type: " + group.type() +
-                                ", Persistent: " + group.persistent() +
-                                ", Hidden: " + group.hidden() +
-                                ", Password: " + group.passwordProtected(), // Assuming Group is a record
+                sender.sendMessage(Component.text("- Name: " + group.getName() +
+                                ", ID: " + group.getId() +
+                                ", Type: " + group.getType() +
+                                ", Persistent: " + group.isPersistent() +
+                                ", Hidden: " + group.isHidden() +
+                                ", Password: " + group.isPasswordProtected(),
                         NamedTextColor.AQUA));
             }
         });

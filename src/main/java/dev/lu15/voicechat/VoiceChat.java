@@ -1,12 +1,13 @@
 package dev.lu15.voicechat;
 
+import dev.lu15.voicechat.group.Group;
 import dev.lu15.voicechat.network.minecraft.Category;
-import dev.lu15.voicechat.network.minecraft.Group;
 import dev.lu15.voicechat.network.minecraft.Packet;
 import dev.lu15.voicechat.network.voice.VoicePacket;
 import java.util.Collection;
-import java.util.UUID;
 
+import java.util.Optional;
+import java.util.UUID;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
@@ -29,20 +30,19 @@ public sealed interface VoiceChat permits VoiceChatImpl {
     }
 
     <T extends Packet<T>> void sendPacket(@NotNull Player player, @NotNull T packet);
-
     <T extends VoicePacket<T>> void sendPacket(@NotNull Player player, @NotNull T packet);
 
     @NotNull @Unmodifiable Collection<Category> getCategories();
-
     @NotNull RegistryKey<Category> addCategory(@NotNull Key id, @NotNull Category category);
 
     boolean removeCategory(@NotNull RegistryKey<Category> category);
 
-    @NotNull @Unmodifiable Collection<Group> getManagedGroups();
-
-    @Nullable Group createManagedGroup(@NotNull String name, @NotNull Group.Type type, @Nullable String password, boolean persistent, boolean hidden);
-    boolean removeManagedGroup(@NotNull UUID groupId);
-    boolean setPlayerManagedGroup(@NotNull Player player, @Nullable UUID groupId, @Nullable String passwordForNewGroup);
+    boolean groupsEnabled();
+    @NotNull @Unmodifiable Collection<Group> getGroups();
+    @NotNull Optional<Group> getGroup(@NotNull UUID groupId);
+    void registerGroup(@NotNull Group group);
+    void unregisterGroup(@NotNull Group group);
+    void setGroup(@NotNull Player player, @Nullable Group group);
 
     sealed interface Builder permits VoiceChatImpl.BuilderImpl {
 
@@ -88,26 +88,24 @@ public sealed interface VoiceChat permits VoiceChatImpl {
         /**
          * Enables/Disables the use of groups on the server.
          * By default, this is set to false.
-         * @param enabled used to determine if groups should be enabled.
          * @return this builder
          */
-        @NotNull Builder groups(boolean enabled);
+        @NotNull Builder groups();
 
         /**
          * Set the keepalive delay for the server.
          * By default, this is set to 1000.
-         * @param keepalive used to determine what the keepalive delay should be set to.
+         * @param keepAlive used to determine what the keepalive delay should be set to.
          * @return this builder
          */
-        @NotNull Builder keepalive(int keepalive);
+        @NotNull Builder keepAlive(int keepAlive);
 
         /**
          * Enables/Disables the use of recording on the server.
          * By default, this is set to false.
-         * @param enabled used to determine if recording should be enabled.
          * @return this builder
          */
-        @NotNull Builder recording(boolean enabled);
+        @NotNull Builder recording();
 
         /**
          * Enable the voice chat server.

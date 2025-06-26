@@ -3,19 +3,30 @@ package dev.lu15.voicechat.network.voice;
 import dev.lu15.voicechat.SoundSources;
 import dev.lu15.voicechat.Tags;
 import dev.lu15.voicechat.VoiceChat;
-import dev.lu15.voicechat.network.minecraft.Group;
+import dev.lu15.voicechat.group.Group;
+import dev.lu15.voicechat.group.GroupManager;
 import dev.lu15.voicechat.network.minecraft.VoiceState;
 import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
 import dev.lu15.voicechat.event.PlayerMicrophoneEvent;
 import dev.lu15.voicechat.network.minecraft.packets.clientbound.VoiceStatesPacket;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
-import dev.lu15.voicechat.network.voice.packets.*;
-
+import dev.lu15.voicechat.network.voice.packets.AuthenticatePacket;
+import dev.lu15.voicechat.network.voice.packets.AuthenticationAcknowledgedPacket;
+import dev.lu15.voicechat.network.voice.packets.GroupSoundPacket;
+import dev.lu15.voicechat.network.voice.packets.KeepAlivePacket;
+import dev.lu15.voicechat.network.voice.packets.MicrophonePacket;
+import dev.lu15.voicechat.network.voice.packets.PingPacket;
+import dev.lu15.voicechat.network.voice.packets.PlayerSoundPacket;
+import dev.lu15.voicechat.network.voice.packets.YeaImHerePacket;
+import dev.lu15.voicechat.network.voice.packets.YouHereBroPacket;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -235,8 +246,8 @@ public final class VoiceServer {
 
     private void handle(@NotNull Player player, @NotNull MicrophonePacket packet) {
         PlayerMicrophoneEvent event = new PlayerMicrophoneEvent(player, packet.data(), distance);
-        VoiceState oldState = player.getTag(Tags.PLAYER_STATE);
-        if(oldState.group() == null) {
+        Group group = groupManager.getGroup(player).orElse(null);
+        if (group == null) {
             EventDispatcher.callCancellable(event, () -> {
                 PlayerSoundPacket soundPacket = new PlayerSoundPacket(
                         player.getUuid(), // the channel is the sender's UUID
@@ -246,18 +257,19 @@ public final class VoiceServer {
                         event.getSoundSelector().distance(),
                         packet.whispering(),
                         SoundSources.PROXIMITY
-                        );
+                );
 
                 event.getSoundSelector().canHear(player).stream().filter(p -> {
                     if (p.equals(player)) return false;
                     VoiceState voiceState = p.getTag(Tags.PLAYER_STATE);
-                    if(voiceState != null && voiceState.group() != null && groupManager.getGroup(voiceState.group()).type() == Group.Type.ISOLATED) return false;
+                    // todo: this needs cleaning up, maybe merge this system with the sound selector?
+                    if (voiceState != null && voiceState.group() != null && groupManager.getGroup(voiceState.group()).map(g -> g.getType() == Group.Type.ISOLATED).orElse(false))
+                        return false;
                     return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).disabled();
                 }).forEach(p -> this.write(p, soundPacket));
             });
         } else {
-            Group group = groupManager.getGroup(player);
-            switch (group.type()) {
+            switch (group.getType()) {
                 case NORMAL, ISOLATED -> {
                     EventDispatcher.callCancellable(event, () -> {
                         GroupSoundPacket soundPacket = new GroupSoundPacket(
@@ -267,7 +279,7 @@ public final class VoiceServer {
                                 packet.sequenceNumber(),
                                 SoundSources.GROUP
                         );
-                        groupManager.getPlayers(group).stream().filter(p -> {
+                        group.getPlayers().stream().filter(p -> {
                             if (p.equals(player)) return false;
                             return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).disabled();
                         }).forEach(p -> this.write(p, soundPacket));
@@ -292,15 +304,16 @@ public final class VoiceServer {
                                 SoundSources.GROUP
                         );
 
-                        List<Player> groupPlayers = groupManager.getPlayers(group).stream().filter(p -> {
+                        List<Player> groupPlayers = group.getPlayers().stream().filter(p -> {
                             if (p.equals(player)) return false;
                             return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).disabled();
                         }).toList();
                         List<Player> players = event.getSoundSelector().canHear(player).stream().filter(p -> {
                             if (p.equals(player)) return false;
-                            if(groupPlayers.contains(p)) return false;
+                            if (groupPlayers.contains(p)) return false;
                             VoiceState voiceState = p.getTag(Tags.PLAYER_STATE);
-                            if(voiceState!= null && voiceState.group() != null && groupManager.getGroup(voiceState.group()).type() == Group.Type.ISOLATED) return false;
+                            if (voiceState != null && voiceState.group() != null && groupManager.getGroup(voiceState.group()).map(g -> g.getType() == Group.Type.ISOLATED).orElse(false))
+                                return false;
                             return !p.hasTag(Tags.PLAYER_STATE) || !p.getTag(Tags.PLAYER_STATE).disabled();
                         }).toList();
                         groupPlayers.forEach(p -> this.write(p, soundPacketGroup));

@@ -14,6 +14,13 @@ public record VoiceState(
         @Nullable UUID group
 ) {
 
+    // todo!
+    // the group field is sent to all clients, even if the group is hidden.
+    // this will leak the existence of the group to clients that are not in it.
+    // we should probably separate the voice state into a state kept on the server
+    // and a serialized state sent to clients, which will allow us to hide the group field
+    // from clients that are not in the group.
+
     public static final @NotNull NetworkBuffer.Type<VoiceState> NETWORK_TYPE = NetworkBufferTemplate.template(
             NetworkBuffer.BOOLEAN, VoiceState::disabled,
             NetworkBuffer.BOOLEAN, VoiceState::disconnected,
@@ -22,5 +29,13 @@ public record VoiceState(
             NetworkBuffer.OPT_UUID, VoiceState::group,
             VoiceState::new
     );
+
+    public @NotNull VoiceState withGroup(@Nullable UUID group) {
+        return new VoiceState(disabled, disconnected, uuid, name, group);
+    }
+
+    public @NotNull VoiceState withDisabled(boolean disabled) {
+        return new VoiceState(disabled, disconnected, uuid, name, group);
+    }
 
 }

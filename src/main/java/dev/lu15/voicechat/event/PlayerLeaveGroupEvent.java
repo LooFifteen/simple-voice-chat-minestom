@@ -1,6 +1,6 @@
 package dev.lu15.voicechat.event;
 
-import dev.lu15.voicechat.network.minecraft.Group;
+import dev.lu15.voicechat.group.Group;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.trait.CancellableEvent;
 import net.minestom.server.event.trait.PlayerEvent;
