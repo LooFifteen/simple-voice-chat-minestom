@@ -28,7 +28,7 @@ import net.minestom.server.event.EventDispatcher;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerPluginMessageEvent;
 import net.minestom.server.registry.DynamicRegistry;
-import net.minestom.server.utils.NamespaceID;
+import net.minestom.server.registry.RegistryKey;
 import net.minestom.server.utils.PacketSendingUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -41,7 +41,7 @@ final class VoiceChatImpl implements VoiceChat {
     private static final @NotNull Logger LOGGER = LoggerFactory.getLogger(VoiceChatImpl.class);
 
     private final @NotNull MinecraftPacketHandler packetHandler = new MinecraftPacketHandler();
-    private final @NotNull DynamicRegistry<Category> categories = DynamicRegistry.create("voicechat:categories");
+    private final @NotNull DynamicRegistry<Category> categories = DynamicRegistry.create(Key.key("voicechat:categories"));
 
     private final @NotNull VoiceServer server;
     private final int port;
@@ -90,9 +90,9 @@ final class VoiceChatImpl implements VoiceChat {
         // send existing categories to newly joining players
         eventNode.addListener(PlayerJoinVoiceChatEvent.class, event -> {
             for (Category category : this.categories.values()) {
-                DynamicRegistry.Key<Category> key = this.categories.getKey(category);
+                RegistryKey<Category> key = this.categories.getKey(category);
                 if (key == null) throw new IllegalStateException("category not found in registry");
-                this.sendPacket(event.getPlayer(), new CategoryAddedPacket(key.namespace(), category));
+                this.sendPacket(event.getPlayer(), new CategoryAddedPacket(key.key(), category));
             }
         });
     }
@@ -159,9 +159,9 @@ final class VoiceChatImpl implements VoiceChat {
     }
 
     @Override
-    public DynamicRegistry.@NotNull Key<Category> addCategory(@NotNull NamespaceID id, @NotNull Category category) {
+    public RegistryKey<Category> addCategory(@NotNull Key id, @NotNull Category category) {
         Category existing = this.categories.get(id);
-        DynamicRegistry.Key<Category> key = this.categories.register(id, category);
+        RegistryKey<Category> key = this.categories.register(id, category);
 
         for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
             if (!player.hasTag(Tags.VOICE_CLIENT)) continue; // only send to voice chat clients
@@ -175,13 +175,13 @@ final class VoiceChatImpl implements VoiceChat {
     }
 
     @Override
-    public boolean removeCategory(@NotNull DynamicRegistry.Key<Category> category) {
-        boolean removed = this.categories.remove(category.namespace());
+    public boolean removeCategory(@NotNull RegistryKey<Category> category) {
+        boolean removed = this.categories.remove(category.key());
         if (!removed) return false;
 
         for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
             if (!player.hasTag(Tags.VOICE_CLIENT)) continue; // only send to voice chat clients
-            this.sendPacket(player, new CategoryRemovedPacket(category.namespace()));
+            this.sendPacket(player, new CategoryRemovedPacket(category.key()));
         }
 
         return true;
