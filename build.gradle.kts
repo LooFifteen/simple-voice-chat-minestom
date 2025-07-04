@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "dev.lu15"
-version = "0.1.0-SNAPSHOT"
+version = "0.2.0-SNAPSHOT"
 
 indra {
     mitLicense()
@@ -45,7 +45,7 @@ repositories {
 
 dependencies {
     // minestom
-    val minestom = "net.minestom:minestom-snapshots:7b659f0fc3"
+    val minestom = "net.minestom:minestom:2025.07.03-1.21.5"
     compileOnly(minestom)
     testImplementation(minestom)
 

@@ -2,6 +2,7 @@ package dev.lu15.voicechat;
 
 import dev.lu15.voicechat.network.minecraft.Category;
 import dev.lu15.voicechat.event.PlayerJoinVoiceChatEvent;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.advancements.FrameType;
@@ -14,8 +15,7 @@ import net.minestom.server.extras.lan.OpenToLAN;
 import net.minestom.server.instance.InstanceContainer;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.Material;
-import net.minestom.server.registry.DynamicRegistry;
-import net.minestom.server.utils.NamespaceID;
+import net.minestom.server.registry.RegistryKey;
 import net.minestom.server.world.DimensionType;
 
 public final class TestServer {
@@ -24,7 +24,7 @@ public final class TestServer {
         MinecraftServer server = MinecraftServer.init();
 
         DimensionType dimensionType = DimensionType.builder().ambientLight(1f).build();
-        DynamicRegistry.Key<DimensionType> dimension = MinecraftServer.getDimensionTypeRegistry().register(NamespaceID.from("test:fullbright"), dimensionType);
+        RegistryKey<DimensionType> dimension = MinecraftServer.getDimensionTypeRegistry().register(Key.key("test:fullbright"), dimensionType);
 
         InstanceContainer instance = MinecraftServer.getInstanceManager().createInstanceContainer(dimension);
         instance.setGenerator(unit -> unit.modifier().fillHeight(0, 40, Block.GRASS_BLOCK));
@@ -35,7 +35,7 @@ public final class TestServer {
         });
 
         VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 25565).enable();
-        voicechat.addCategory(NamespaceID.from("voicechat", "test"), new Category("Test", "A test category", null));
+        voicechat.addCategory(Key.key("voicechat", "test"), new Category("Test", "A test category", null));
 
         Notification notification = new Notification(Component.text("Connected to voice chat"), FrameType.GOAL, Material.NOTE_BLOCK);
         MinecraftServer.getGlobalEventHandler().addListener(PlayerJoinVoiceChatEvent.class, event -> {
