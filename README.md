@@ -14,6 +14,12 @@
   - [ ] Keepalive interval
   - [ ] Recording
 
+### Installation
+
+The latest **snapshot versions** can be found here:
+
+🔗 [Browse available versions](https://repo.hypera.dev/#/snapshots/dev/lu15/simple-voice-chat-minestom)
+
 ```kts
 repositories {
     mavenCentral() // minestom
@@ -21,7 +27,7 @@ repositories {
 }
 
 dependencies {
-    implementation("dev.lu15:simple-voice-chat-minestom:0.1.0-SNAPSHOT")
+    implementation("dev.lu15:simple-voice-chat-minestom:0.2.0-SNAPSHOT")
 }
 ```
 
