@@ -4,6 +4,7 @@ import dev.lu15.voicechat.Codec;
 import dev.lu15.voicechat.VoiceChat;
 import dev.lu15.voicechat.network.NetworkTypes;
 import dev.lu15.voicechat.network.minecraft.Packet;
+import dev.lu15.voicechat.network.voice.encryption.Secret;
 import java.util.UUID;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.network.NetworkBuffer;
@@ -11,7 +12,7 @@ import net.minestom.server.network.NetworkBufferTemplate;
 import org.jetbrains.annotations.NotNull;
 
 public record HandshakeAcknowledgePacket(
-        @NotNull UUID secret,
+        @NotNull Secret secret,
         int port,
         @NotNull UUID player,
         @NotNull Codec codec,
@@ -25,7 +26,7 @@ public record HandshakeAcknowledgePacket(
 
     public static final @NotNull Key IDENTIFIER = VoiceChat.key("secret");
     public static final @NotNull NetworkBuffer.Type<HandshakeAcknowledgePacket> SERIALIZER = NetworkBufferTemplate.template(
-            NetworkBuffer.UUID, HandshakeAcknowledgePacket::secret,
+            Secret.SERIALIZER, HandshakeAcknowledgePacket::secret,
             NetworkBuffer.INT, HandshakeAcknowledgePacket::port,
             NetworkBuffer.UUID, HandshakeAcknowledgePacket::player,
             NetworkTypes.ByteEnum(Codec.class), HandshakeAcknowledgePacket::codec,

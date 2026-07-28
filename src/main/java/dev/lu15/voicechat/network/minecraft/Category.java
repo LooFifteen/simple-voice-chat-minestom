@@ -7,7 +7,9 @@ import org.jetbrains.annotations.Nullable;
 
 public record Category(
         @NotNull String name,
+        @Nullable String nameTranslationKey,
         @Nullable String description,
+        @Nullable String descriptionTranslationKey,
         int @Nullable [] @NotNull [] icon
 ) {
 
@@ -35,7 +37,9 @@ public record Category(
     };
     public static final @NotNull NetworkBuffer.Type<Category> NETWORK_TYPE = NetworkBufferTemplate.template(
             NetworkBuffer.STRING, Category::name,
+            NetworkBuffer.STRING.optional(), Category::nameTranslationKey,
             NetworkBuffer.STRING.optional(), Category::description,
+            NetworkBuffer.STRING.optional(), Category::descriptionTranslationKey,
             ICON_SERIALIZER.optional(), Category::icon,
             Category::new
     );

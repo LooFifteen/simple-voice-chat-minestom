@@ -1,6 +1,6 @@
 package dev.lu15.voicechat.event;
 
-import java.util.UUID;
+import dev.lu15.voicechat.network.voice.encryption.Secret;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.trait.CancellableEvent;
 import net.minestom.server.event.trait.PlayerEvent;
@@ -11,9 +11,9 @@ public final class PlayerHandshakeVoiceChatEvent implements PlayerEvent, Cancell
     private final @NotNull Player player;
 
     private boolean cancelled;
-    private @NotNull UUID secret;
+    private @NotNull Secret secret;
 
-    public PlayerHandshakeVoiceChatEvent(@NotNull Player player, @NotNull UUID secret) {
+    public PlayerHandshakeVoiceChatEvent(@NotNull Player player, @NotNull Secret secret) {
         this.player = player;
         this.secret = secret;
     }
@@ -23,11 +23,11 @@ public final class PlayerHandshakeVoiceChatEvent implements PlayerEvent, Cancell
         return this.player;
     }
 
-    public @NotNull UUID getSecret() {
+    public @NotNull Secret getSecret() {
         return this.secret;
     }
 
-    public void setSecret(@NotNull UUID secret) {
+    public void setSecret(@NotNull Secret secret) {
         this.secret = secret;
     }
 
