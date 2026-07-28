@@ -18,6 +18,12 @@ public sealed interface VoiceChat permits VoiceChatImpl {
     @NotNull String NAMESPACE = "voicechat";
 
     /**
+     * The Simple Voice Chat compatibility version implemented by this library.
+     * Clients reporting a different version cannot be served.
+     */
+    int COMPATIBILITY_VERSION = 20;
+
+    /**
      * Construct a new voice chat server. The server will start after building.
      * @param address the address to bind to
      * @param port the port to bind to, this can be the same as the Minecraft server port

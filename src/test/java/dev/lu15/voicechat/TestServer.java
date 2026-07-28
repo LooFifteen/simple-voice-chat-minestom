@@ -8,23 +8,27 @@ import net.minestom.server.Auth;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.advancements.FrameType;
 import net.minestom.server.advancements.Notification;
+import net.minestom.server.color.Color;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.player.AsyncPlayerConfigurationEvent;
-import net.minestom.server.extras.MojangAuth;
 import net.minestom.server.extras.lan.OpenToLAN;
 import net.minestom.server.instance.InstanceContainer;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.item.Material;
 import net.minestom.server.registry.RegistryKey;
 import net.minestom.server.world.DimensionType;
+import net.minestom.server.world.attribute.EnvironmentAttribute;
 
 public final class TestServer {
 
     public static void main(String[] args) {
         MinecraftServer server = MinecraftServer.init(new Auth.Online());
 
-        DimensionType dimensionType = DimensionType.builder().ambientLight(1f).build();
+        DimensionType dimensionType = DimensionType.builder()
+                .ambientLight(1f)
+                .setAttribute(EnvironmentAttribute.AMBIENT_LIGHT_COLOR, Color.WHITE)
+                .build();
         RegistryKey<DimensionType> dimension = MinecraftServer.getDimensionTypeRegistry().register(Key.key("test", "fullbright"), dimensionType);
 
         InstanceContainer instance = MinecraftServer.getInstanceManager().createInstanceContainer(dimension);
@@ -36,7 +40,7 @@ public final class TestServer {
         });
 
         VoiceChat voicechat = VoiceChat.builder("0.0.0.0", 25565).enable();
-        voicechat.addCategory(VoiceChat.key("test"), new Category("Test", "A test category", null));
+        voicechat.addCategory(VoiceChat.key("test"), new Category("Test", null, "A test category", null, null));
 
         Notification notification = new Notification(Component.text("Connected to voice chat"), FrameType.GOAL, Material.NOTE_BLOCK);
         MinecraftServer.getGlobalEventHandler().addListener(PlayerJoinVoiceChatEvent.class, event -> {

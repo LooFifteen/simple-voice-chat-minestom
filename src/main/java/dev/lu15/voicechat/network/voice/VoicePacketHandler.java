@@ -1,6 +1,6 @@
 package dev.lu15.voicechat.network.voice;
 
-import dev.lu15.voicechat.network.voice.encryption.AES;
+import dev.lu15.voicechat.network.voice.encryption.Secret;
 import dev.lu15.voicechat.network.voice.encryption.SecretUtilities;
 import dev.lu15.voicechat.network.voice.packets.AuthenticatePacket;
 import dev.lu15.voicechat.network.voice.packets.AuthenticationAcknowledgedPacket;
@@ -12,7 +12,6 @@ import dev.lu15.voicechat.network.voice.packets.PlayerSoundPacket;
 import dev.lu15.voicechat.network.voice.packets.PositionedSoundPacket;
 import dev.lu15.voicechat.network.voice.packets.YeaImHerePacket;
 import dev.lu15.voicechat.network.voice.packets.YouHereBroPacket;
-import java.util.UUID;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
 import net.minestom.server.network.NetworkBuffer;
@@ -54,10 +53,10 @@ public final class VoicePacketHandler {
         Player player = MinecraftServer.getConnectionManager().getOnlinePlayerByUuid(outer.read(NetworkBuffer.UUID));
         if (player == null || !player.isOnline()) return null; // player has disconnected
 
-        UUID secret = SecretUtilities.getSecret(player.getUuid());
+        Secret secret = SecretUtilities.getSecret(player.getUuid());
         if (secret == null) throw new IllegalStateException("no secret for player");
 
-        byte[] decrypted = AES.decrypt(secret, outer.read(NetworkBuffer.BYTE_ARRAY));
+        byte[] decrypted = secret.decrypt(outer.read(NetworkBuffer.BYTE_ARRAY));
         NetworkBuffer buffer = NetworkBuffer.wrap(decrypted, 0, decrypted.length);
 
         int id = buffer.read(NetworkBuffer.BYTE);
@@ -81,7 +80,7 @@ public final class VoicePacketHandler {
         NetworkBuffer buffer = NetworkBuffer.resizableBuffer();
         buffer.write(NetworkBuffer.BYTE, MAGIC_BYTE);
 
-        UUID secret = SecretUtilities.getSecret(player);
+        Secret secret = SecretUtilities.getSecret(player);
         if (secret == null) throw new IllegalStateException("no secret for player");
 
         NetworkBuffer inner = NetworkBuffer.resizableBuffer();
@@ -91,7 +90,7 @@ public final class VoicePacketHandler {
         byte[] data = new byte[(int) inner.writeIndex()];
         inner.copyTo(0, data, 0, data.length);
 
-        byte[] encrypted = AES.encrypt(secret, data);
+        byte[] encrypted = secret.encrypt(data);
         buffer.write(NetworkBuffer.BYTE_ARRAY, encrypted);
 
         byte[] result = new byte[(int) buffer.writeIndex()];
