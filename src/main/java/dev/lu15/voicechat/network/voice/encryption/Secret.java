@@ -24,16 +24,16 @@ public final class Secret {
 
     private static final @NotNull Random RANDOM = new SecureRandom();
     private static final @NotNull String CIPHER = "AES/GCM/NoPadding";
-    private static final int IV_LENGTH = 12;
-    private static final int TAG_LENGTH = 128;
+    private static final int IV_LENGTH_BYTES = 12;
+    private static final int TAG_LENGTH_BITS = 128;
 
     private final byte @NotNull[] bytes;
     private final @NotNull SecretKeySpec key;
 
     public Secret(byte @NotNull[] bytes) {
         if (bytes.length != LENGTH) throw new IllegalArgumentException("secret must be " + LENGTH + " bytes");
-        this.bytes = bytes;
-        this.key = new SecretKeySpec(bytes, "AES");
+        this.bytes = bytes.clone();
+        this.key = new SecretKeySpec(this.bytes, "AES");
     }
 
     public static @NotNull Secret generate() {
@@ -43,15 +43,15 @@ public final class Secret {
     }
 
     public byte @NotNull[] bytes() {
-        return this.bytes;
+        return this.bytes.clone();
     }
 
     public byte @NotNull[] encrypt(byte @NotNull[] data) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
-        byte[] iv = new byte[IV_LENGTH];
+        byte[] iv = new byte[IV_LENGTH_BYTES];
         RANDOM.nextBytes(iv);
 
         Cipher cipher = Cipher.getInstance(CIPHER);
-        cipher.init(Cipher.ENCRYPT_MODE, this.key, new GCMParameterSpec(TAG_LENGTH, iv));
+        cipher.init(Cipher.ENCRYPT_MODE, this.key, new GCMParameterSpec(TAG_LENGTH_BITS, iv));
 
         byte[] encrypted = cipher.doFinal(data);
         byte[] result = new byte[iv.length + encrypted.length];
@@ -62,13 +62,13 @@ public final class Secret {
     }
 
     public byte @NotNull[] decrypt(byte @NotNull[] payload) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
-        if (payload.length < IV_LENGTH) throw new IllegalArgumentException("payload too short");
+        if (payload.length < IV_LENGTH_BYTES) throw new IllegalArgumentException("payload too short");
 
-        byte[] iv = Arrays.copyOfRange(payload, 0, IV_LENGTH);
-        byte[] data = Arrays.copyOfRange(payload, IV_LENGTH, payload.length);
+        byte[] iv = Arrays.copyOfRange(payload, 0, IV_LENGTH_BYTES);
+        byte[] data = Arrays.copyOfRange(payload, IV_LENGTH_BYTES, payload.length);
 
         Cipher cipher = Cipher.getInstance(CIPHER);
-        cipher.init(Cipher.DECRYPT_MODE, this.key, new GCMParameterSpec(TAG_LENGTH, iv));
+        cipher.init(Cipher.DECRYPT_MODE, this.key, new GCMParameterSpec(TAG_LENGTH_BITS, iv));
 
         return cipher.doFinal(data);
     }

@@ -39,7 +39,11 @@ public record CategoryAddedPacket(@NotNull String identifier, @NotNull Category 
     }
 
     private static void checkOptionalLength(@NotNull String field, @Nullable String value) {
-        if (value != null && value.length() > 32767) throw new IllegalArgumentException("category " + field + " is too long, found " + value.length() + " characters, maximum is 32767");
+        if (value == null || value.length() <= 32767) return;
+
+        throw new IllegalArgumentException(
+                "category " + field + " is too long, found " + value.length() + " characters, maximum is 32767"
+        );
     }
 
     @Override
